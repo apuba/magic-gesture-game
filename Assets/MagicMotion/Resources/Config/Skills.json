@@ -1,0 +1,16 @@
+{
+  "skills": [
+    {
+      "id": "SK001",
+      "name": "震山掌",
+      "gesture": "OpenPalm",
+      "palm": "Forward",
+      "motion": "Push",
+      "minimumConfidence": 0.78,
+      "inputMaxAge": 0.25,
+      "cooldown": 1.0,
+      "vfx": "PalmStrike"
+    }
+  ]
+}
+

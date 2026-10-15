@@ -1,0 +1,64 @@
+========================================================================
+Magic Motion 真机测试 - 安装与设备原始记录
+采集时间：2026-10-14 19:35 ~ 19:50 (本机时间)
+采集方式：ADB（D:\Android\Sdk\platform-tools\adb.exe, Android Debug Bridge 1.0.41 / Version 37.0.1-15733141）
+========================================================================
+
+一、设备（TC-00）
+------------------------------------------------------------------------
+adb devices -l:
+  AXYP6R4A30002818       device product:ALP-AN00 model:ALP_AN00 device:HNALP-Q transport_id:1
+
+ro.product.manufacturer = HONOR
+ro.product.model        = ALP-AN00
+ro.product.board        = ALP
+ro.hardware             = qcom
+ro.soc.model            = SM8475 (Snapdragon 8+ Gen 1)
+ro.build.version.release= 14
+ro.build.version.sdk    = 34
+ro.build.display.id     = ALP-AN00T 8.0.0.218(CNC00E206R6P4)
+wm size                 = Physical size: 1200x2652
+wm density              = Physical density: 520
+Total RAM               = 15,666,092K (status normal)
+电池                    = level 45, status 2(充电中), USB powered: true, temperature 41.0
+
+二、APK（TC-01）
+------------------------------------------------------------------------
+路径        : E:\2026\魔法手势游戏\Builds\Android\MagicMotion-Development.apk
+大小        : 75,543,958 字节
+修改时间    : 2026/10/14 12:54:58
+SHA-256     : 6EB07F4E1B2F9B3F96B209C733879B7D92A09550F4283A352C91813CACBA9A97
+（与测试文档第 2 节基准值完全一致，说明安装/测试的确实是基准包）
+
+aapt2 dump badging:
+  package: name='com.magicmotion.game' versionCode='1' versionName='1.0'
+  minSdkVersion:'26' targetSdkVersion:'35' native-code: 'arm64-v8a'
+  launchable-activity: name='com.unity3d.player.UnityPlayerActivity'
+
+三、安装（TC-01）
+------------------------------------------------------------------------
+adb -s AXYP6R4A30002818 install -r -t MagicMotion-Development.apk
+  Performing Streamed Install
+  Success
+
+adb shell pm path com.magicmotion.game
+  package:/data/app/~~4pIvwZy9kiVzq5OFO-I-VQ==/com.magicmotion.game-MNv8EIYZwva1jEDphVfYMg==/base.apk
+
+dumpsys package com.magicmotion.game:
+  versionCode=1 minSdk=26 targetSdk=35
+  versionName=1.0
+  firstInstallTime=2026-10-14 19:38:30
+  lastUpdateTime=2026-10-14 19:38:30
+  runtime permissions:
+    android.permission.CAMERA: granted=false
+    android.permission.INTERNET: granted=true
+
+四、本机 adb 与无线调试备注（环境记录）
+------------------------------------------------------------------------
+1) 本次验收最终使用 USB 连接，序列号 AXYP6R4A30002818。
+2) 无线调试（adb pair/connect, 192.168.1.103）在本机不可用：
+   adb pair 首次成功（Successfully paired），adb devices 能列出设备并读到型号，
+   但任何实际会话（adb shell / push / install）都会立即返回
+   "protocol fault (couldn't read status): connection reset"，
+   原因判定为本机 platform-tools 37.0.1 (adb 1.0.41) 与设备端 adbd 协议不兼容。
+   USB 通道下 shell/push/install 全部正常。

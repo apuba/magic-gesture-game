@@ -1,0 +1,28 @@
+--------- beginning of system
+10-15 05:45:07.236 D/ActivityThread(21250): Attach thread to application
+10-15 05:45:07.286 I/ActivityThread(21250): Init compatible state: true
+10-15 05:45:07.340 I/ActivityThread(21250): finishPreloaded preloadStatus 0
+10-15 05:45:07.341 V/ActivityThread(21250): Handling launch of ActivityRecord{5d88a54 token=android.os.BinderProxy@9555a7 {com.magicmotion.game/com.unity3d.player.UnityPlayerActivity}}
+10-15 05:45:07.357 V/ActivityThread(21250): callActivityOnCreate
+10-15 05:45:07.404 I/ActivityThread(21250): add activity client record, r= ActivityRecord{5d88a54 token=android.os.BinderProxy@9555a7 {com.magicmotion.game/com.unity3d.player.UnityPlayerActivity}} token= android.os.BinderProxy@9555a7
+10-15 05:45:07.499 I/HwForceDarkManager(21250): setAllowedHwForceDark:false package:com.magicmotion.game mCurrProcessState:0 mIsPackageNameChange:false hwForceDarkState:0 isViewAllowedForceDark:true isLastHonorForceDark:false
+10-15 05:45:07.517 I/VRI[UnityPlayerActivity](21250): send MSG_WINDOW_FOCUS_CHANGED msg
+10-15 05:45:10.747 I/VRI[UnityPlayerActivity](21250): send MSG_WINDOW_FOCUS_CHANGED msg
+10-15 05:45:10.747 I/ViewRootImpl(21250): focus window changed, set pointer icon to default
+10-15 05:45:23.241 D/ActivityThread(21250): Won't deliver top position change in state=4
+10-15 05:45:23.263 I/VRI[UnityPlayerActivity](21250): send MSG_WINDOW_FOCUS_CHANGED msg
+10-15 05:45:44.557 I/VRI[UnityPlayerActivity](21250): send MSG_WINDOW_FOCUS_CHANGED msg
+10-15 05:45:44.607 D/ActivityThread(21250): Won't deliver top position change in state=4
+10-15 05:45:44.628 I/VRI[UnityPlayerActivity](21250): send MSG_WINDOW_FOCUS_CHANGED msg
+--------- beginning of main
+10-15 05:46:08.027 I/agicmotion.game(21250): recheck for pg, sessionid : 1209
+10-15 05:46:22.273 D/CompatibilityChangeReporter(21250): Compat change id reported: 150939131; UID 10327; state: ENABLED
+10-15 05:46:22.275 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.277 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.278 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.282 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.285 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.287 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.288 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.290 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4
+10-15 05:46:22.291 V/AudioManager(21250): getStreamVolume streamType: 3 volume: 4

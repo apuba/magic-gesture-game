@@ -1,0 +1,65 @@
+========================================================================
+Magic Motion 真机测试（第二轮：boot-fix 包）- 安装与设备原始记录
+采集时间：2026-10-14 19:52 ~ 19:55
+ADB：D:\Android\Sdk\platform-tools\adb.exe（Android Debug Bridge 1.0.41 / Version 37.0.1-15733141），USB 连接
+========================================================================
+
+一、设备（TC-00）
+------------------------------------------------------------------------
+adb devices -l:
+  AXYP6R4A30002818       device product:ALP-AN00 model:ALP-AN00 device:HNALP-Q transport_id:1
+
+品牌/型号 : HONOR ALP-AN00（product=ALP-AN00, device=HNALP-Q）
+Android   : 14 / API 34（ALP-AN00T 8.0.0.218(CNC00E206R6P4)）
+SoC / RAM : Qualcomm SM8475（骁龙 8+ Gen 1）/ 15,666,092 KB
+屏幕      : 1200 × 2652，density 520
+电量      : 45%，USB 充电中
+
+二、APK（TC-01）
+------------------------------------------------------------------------
+路径     : E:\2026\魔法手势游戏\Builds\Android\MagicMotion-Development.apk
+大小     : 75,543,958 字节
+修改时间 : 2026/10/14 19:46:58（本轮为重新构建的 boot-fix 包）
+SHA-256  : 81043A456F778F3D9C1AD7770DE226E4269912172D1297A55493E511317DC711
+           （与更新后的测试文档第 2 节基准值一致）
+上一轮包 : SHA-256 6EB07F4E1B2F9B3F96B209C733879B7D92A09550F4283A352C91813CACBA9A97（12:54:58）
+
+三、安装（TC-01）
+------------------------------------------------------------------------
+adb -s AXYP6R4A30002818 install -r -t MagicMotion-Development.apk
+  Performing Streamed Install
+  Success
+
+adb shell pm path com.magicmotion.game
+  package:/data/app/~~fWu1oR5HKBJZqMv0Jrgi_w==/com.magicmotion.game-11uhv3FpXVaGPJWc3VADjQ==/base.apk
+
+dumpsys package:
+  versionCode=1 minSdk=26 targetSdk=35 versionName=1.0
+  lastUpdateTime=2026-10-14 19:53:00
+  android.permission.CAMERA: granted=false
+  android.permission.INTERNET: granted=true
+
+四、本轮冷启动关键时间线（device-logcat-coldstart.txt）
+------------------------------------------------------------------------
+19:53:26.422  ActivityTaskManager: start process async is top ? true
+19:53:26.447  ActivityManager: Start proc 22947:com.magicmotion.game/u0a324 for next-top-activity
+19:53:29.629  I Unity: [MagicMotion] Core systems initialized.
+19:53:29.631  I Unity: [MagicMotion.Camera] Stopped: Camera stopped.
+19:53:29.699  I Unity: [MagicMotion.Vision] Initializing: Initializing hand-tracking provider.
+19:53:29.838  I Unity: [MagicMotion.Vision] MediaPipe Hand Landmarker initialized (CPU, two hands).
+19:53:29.838  I Unity: [MagicMotion.Vision] Running: Vision pipeline is running.
+19:53:29.839  I Unity: [MagicMotion.Camera] Stopped: Camera stopped.   <-- BootScene ApplyScene -> StopCamera
+19:53:29.873  E Unity: NullReferenceException ... SetupPerFrameShaderConstants ()
+（此后每帧一条同类异常；至 19:54:24 仍在持续，期间无任何其它应用日志）
+
+五、工程侧核对（说明为何 boot-fix 未生效）
+------------------------------------------------------------------------
+1) Assets/MagicMotion/Config/MagicMotionURP.asset（19:45:01 被重新序列化）中：
+     m_EnableLODCrossFade: 1
+     m_LODCrossFadeDitheringType: 1        # BlueNoise
+     m_Textures:
+       blueNoise64LTex: {fileID: 0}        # 仍为 null
+       bayerMatrixTex: {fileID: 0}         # 仍为 null
+2) Assets/MagicMotion/Scripts/Core/ExperienceFlowController.cs（19:42:53）内容与上一轮一致。
+3) Logs/android-build-boot-fix.log 显示本轮构建 [MagicMotion.Build] Result=Succeeded, Errors=0,
+   但 URP 资产的噪声纹理引用依旧是 {fileID: 0}，异常链未被消除。

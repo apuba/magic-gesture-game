@@ -1,0 +1,97 @@
+========================================================================
+Magic Motion 真机测试（第三轮）- 设备、APK、安装与权限原始记录
+采集时间：2026-10-14 23:33 ~ 2026-10-15 05:49
+========================================================================
+
+一、设备（TC-00）
+------------------------------------------------------------------------
+adb devices -l:
+  AXYP6R4A30002818  device product:ALP-AN00 model:ALP_AN00 device:HNALP-Q transport_id:1
+
+品牌/型号 : HONOR ALP-AN00（product=ALP-AN00, device=HNALP-Q）
+Android   : 14 / API 34（ALP-AN00T 8.0.0.218(CNC00E206R6P4)）
+SoC / RAM : Qualcomm SM8475（骁龙 8+ Gen 1）/ 15,666,092 KB（约 16 GB）
+屏幕      : 1200 × 2652，density 520
+电量      : 100%，status=5（满电/充电中）
+ADB       : D:\Android\Sdk\platform-tools\adb.exe
+            Android Debug Bridge version 1.0.41（Version 37.0.1-15733141）
+连接方式  : USB 数据线（无线调试 adb pair 可成功，但 shell/push/install 全部被 reset，不可用）
+
+二、本轮实际测过的两个 APK
+------------------------------------------------------------------------
+A. 用户 2026-10-14 23:21:41 构建（URP 修复后的第一版，无权限修复）
+   大小     : 98,454,286 字节
+   修改时间 : 2026/10/14 23:21:41
+   SHA-256  : FC12ED16B0EA96435D53E33D2092E0E05FFDED017F0C1C99B06D1088E4BA07A1
+   用途     : 验证 URP 空引用修复、战斗闭环（TC-02 / TC-04 / TC-10 / TC-12 定性证据）
+   证据     : device-logcat-coldstart-fc12ed16.txt、10a-battle-enter-10s.png、
+              04-one-hand-openpalm.png、10-battle-complete.png
+
+B. 2026-10-15 01:20:50 构建（本轮最终测试包 = 权限修复包）
+   大小     : 67,596,904 字节
+   修改时间 : 2026/10/15 01:20:50
+   SHA-256  : 3FBD9EACB89208F7DD850CA3C9C06F00666145BBF09398C8FD5F36CF9EACB378
+   用途     : TC-01 / TC-02 / TC-03 / TC-04 验证；设备当前安装的就是这一版
+   构建日志 : Logs\android-build-permission-fix.log
+              [MagicMotion.Build] Result=Succeeded, Errors=0, Warnings=0,
+              Size=699485708, Time=00:07:18.8865758
+   构建命令 : Unity.exe -batchmode -nographics -quit -projectPath E:\mmproj
+              -executeMethod MagicMotion.Editor.CommandLineBuild.BuildAndroidDevelopment
+              -logFile E:\mmproj\Logs\android-build-permission-fix.log
+              （E:\mmproj 是用 mklink /J 建的项目联接，用来绕开
+               "Project path contains non-ASCII characters" 的 Android 构建限制）
+
+三、安装记录（TC-01，全新安装）
+------------------------------------------------------------------------
+adb -s AXYP6R4A30002818 uninstall com.magicmotion.game   -> Success
+adb -s AXYP6R4A30002818 install -r -t <APK B>            -> Performing Streamed Install / Success
+dumpsys package com.magicmotion.game:
+  versionName=1.0   versionCode=1
+  lastUpdateTime=2026-10-15 05:42:20
+  install permissions: android.permission.CAMERA: granted=false   <- 干净起点
+
+四、摄像头权限状态演变（TC-03）
+------------------------------------------------------------------------
+1) 干净安装后：granted=false
+2) 冷启动 -> 系统授权框弹出（mCurrentFocus 变为
+   com.android.permissioncontroller/.permission.ui.GrantPermissionsActivity）
+   -> 用户点“允许” -> granted=true, flags=[USER_SET|...]
+   -> 05:47:29.807 RequestingPermission -> 05:47:30.026 Running（0.22 s）
+3) pm revoke 后冷启动 -> 授权框再次弹出 -> 用户点“不允许”
+   -> granted=false, flags=[USER_SET|USER_FIXED|...]
+   -> 05:46:00.534 SetState(CameraState.PermissionDenied,
+      "Camera permission was denied.")（CameraManager.cs:66）
+   -> 无 FATAL / ANR / SIGSEGV，进程存活，CPU 0%
+4) pm grant 后冷启动 -> 摄像头恢复正常（05:47:30.026 Running）
+
+五、本轮工程侧修复
+------------------------------------------------------------------------
+1) Assets/MagicMotion/Config/MagicMotionURP.asset（2026-10-14 20:01 修改）
+   m_Textures:
+     blueNoise64LTex: {fileID: 2800000, guid: e3d24661c1e055f45a7560c033dbb837, type: 3}
+     bayerMatrixTex:  {fileID: 2800000, guid: f9ee4ed84c1d10c49aabb9b210b0fc44, type: 3}
+   （原先均为 {fileID: 0} -> URP SetupPerFrameShaderConstants 每帧 NullReferenceException）
+
+2) Assets/MagicMotion/Scripts/Camera/CameraManager.cs（2026-10-15 01:0x 修改）
+   - 弃用 Application.RequestUserAuthorization（Android 14 上不弹系统框）
+   - 改为 currentActivity.requestPermissions(["android.permission.CAMERA"], 1001)
+     + checkSelfPermission 轮询判定 + 首次请求后补一次重试
+   - 启动协程开头延后 2 帧，等 Activity 恢复后再请求
+
+六、当前包（APK B）关键日志
+------------------------------------------------------------------------
+05:49:12.618  ActivityManager: Start proc 23534:com.magicmotion.game/u0a327 for next-top-activity
+05:49:16.265  I Unity: [MagicMotion.Camera] Running: Camera is running.
+05:49:31.792  I Unity: [MagicMotion.Vision] processed=150 framesWithHands=0 luma=0.131
+              rotation=270 mirrorV=False front=True
+（说明：cameraManager.StartCamera() 只在 ExperienceFlowController 收到 "BattleScene"
+  场景加载完成事件时调用 -> Camera Running 即证明应用已离开 BootScene 进入战斗场景）
+
+七、已知遗留观察（尚未修复）
+------------------------------------------------------------------------
+- 拒绝权限后约 53 秒才进入 PermissionDenied（20 s 等待 + 重试 + 15 s 等待），
+  且明确拒绝后仍会自动再请求一次
+- W Unity: [MagicMotion.Core] 'Universal Render Pipeline/Particles/Unlit' is unavailable,
+  falling back to Sprites/Default.（技能特效着色器被剥离）
+- HUD 观测 FPS：18.1 / 17.9（两次截图，非正式性能测量）
+- 运行态内存：TOTAL PSS 712,038 KB / TOTAL RSS 793,008 KB（2026-10-15 05:47 前后）

@@ -1,0 +1,14 @@
+{
+  "minimumDuration": 0.10,
+  "maximumDuration": 1.20,
+  "minimumScaleGrowth": 0.40,
+  "minimumScaleGrowthFar": 0.40,
+  "nearPalmWidth": 0.105,
+  "nearEnoughPalmWidth": 0.08,
+  "minimumScaleVelocity": 0.10,
+  "minimumDepthChange": 0.015,
+  "maximumLateralDrift": 3.0,
+  "cooldownSeconds": 0.45,
+  "assumedAxialShare": 0.5,
+  "minimumRetractRatio": 0.03
+}
