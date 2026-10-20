@@ -196,6 +196,14 @@ namespace MagicMotion.Calibration
         private GestureRecordingTrial CurrentTrial =>
             trialIndex >= 0 && trialIndex < plan.Count ? plan[trialIndex] : null;
 
+        // While a session runs this recorder owns the screen and the voice: it
+        // speaks its own countdown and cues, so other prompts must stay quiet
+        // or the two talk over each other.
+        public bool IsSessionActive =>
+            phase != RecorderPhase.Idle &&
+            phase != RecorderPhase.Complete &&
+            phase != RecorderPhase.Error;
+
         private void Start()
         {
             if (GameManager.Instance == null)

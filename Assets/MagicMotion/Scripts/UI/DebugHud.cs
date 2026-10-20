@@ -35,6 +35,16 @@ namespace MagicMotion.UI
         private readonly Dictionary<Handedness, double> lastOpenPalmTimestamps =
             new Dictionary<Handedness, double>();
 
+        // Compared by reference elsewhere to decide when to speak.
+        private const string TooFarHint = "Too far: move closer to the camera";
+        // Said out loud when the hint becomes the too-far one; the panel text is
+        // too small to notice mid-gesture.
+        private const string TooFarSpoken = "把手靠近一些";
+        // How long a different verdict has to hold before the hint flips.
+        // Estimated palm width jitters frame to frame, so an immediate flip made
+        // the hint flicker and re-spoke the voice line.
+        private const float HintStabilitySeconds = 0.5f;
+
         // Mirrors SK001's inputMaxAge; used only to explain why a cast failed.
         private const float DiagnosticInputMaxAge = 0.25f;
         // Mirrors SkillManager.PalmMaxAge.
@@ -55,10 +65,16 @@ namespace MagicMotion.UI
         private FpsCounter fpsCounter;
         private GUIStyle panelStyle;
         private GUIStyle labelStyle;
+        private GUIStyle hintStyle;
+        private string lastHint;
         private string cameraMessage = "Not started";
         private string visionMessage = "Not started";
         private int detectedHands;
         private MotionConfig motionConfig;
+        private SpeechFeedback speech;
+        private bool tooFar;
+        private bool pendingTooFar;
+        private float pendingTooFarSince;
         private float enemyHealth = -1f;
         private float enemyMaximumHealth = -1f;
         private string battleStatus = "Waiting";
@@ -69,6 +85,12 @@ namespace MagicMotion.UI
             cameraManager = FindFirstObjectByType<CameraManager>();
             visionPipeline = FindFirstObjectByType<VisionPipeline>();
             motionConfig = FindFirstObjectByType<ConfigManager>()?.Motion ?? new MotionConfig();
+            // Added here so no scene edit is needed to wire speech up.
+            speech = FindFirstObjectByType<SpeechFeedback>();
+            if (speech == null)
+            {
+                speech = gameObject.AddComponent<SpeechFeedback>();
+            }
             trackingProvider = FindFirstObjectByType<MediaPipeHandTrackingProvider>();
             palmClassifier = new PalmDirectionClassifier();
             fpsCounter = new FpsCounter();
@@ -119,6 +141,21 @@ namespace MagicMotion.UI
                 enemyHealth = observedEnemy.CurrentHealth;
                 enemyMaximumHealth = observedEnemy.MaximumHealth;
             }
+
+            // Log on change so a run can be verified from logcat alone: the hint
+            // is UI text, and it previously hid at the bottom of a wall of small
+            // print that was easy to miss on a phone screen.
+            UpdateTooFarState();
+            var hint = BuildHint();
+            if (!string.Equals(hint, lastHint, System.StringComparison.Ordinal))
+            {
+                lastHint = hint;
+                Debug.Log($"[MagicMotion.Diag] hint=\"{hint}\"");
+                if (string.Equals(hint, TooFarHint, System.StringComparison.Ordinal))
+                {
+                    speech.Speak(TooFarSpoken);
+                }
+            }
         }
 
         private void OnGUI()
@@ -146,12 +183,22 @@ namespace MagicMotion.UI
             DrawCameraPreview(previewRect);
 
             var content = BuildText();
+            // The hint is the one line the user must act on, so it gets its own
+            // large, bright block above the camera preview instead of a buried
+            // final line of small print.
+            var hintHeight = Mathf.Min(120f * scale, rect.height * 0.25f);
+            var hintRect = new Rect(
+                rect.x + 14f,
+                previewRect.y - hintHeight - 10f,
+                rect.width - 28f,
+                hintHeight);
             var textRect = new Rect(
                 rect.x + 14f,
                 rect.y + 12f,
                 rect.width - 28f,
-                rect.height - previewHeight - 38f);
+                rect.height - previewHeight - hintHeight - 60f);
             GUI.Label(textRect, content, labelStyle);
+            GUI.Label(hintRect, lastHint ?? string.Empty, hintStyle);
         }
 
         private void DrawCameraPreview(Rect rect)
@@ -223,8 +270,7 @@ namespace MagicMotion.UI
                     .Append(" / ").Append(enemyMaximumHealth.ToString("0")).AppendLine();
             }
 
-            builder.Append("Battle: ").Append(battleStatus).AppendLine();
-            builder.Append("Hint: ").Append(BuildHint());
+            builder.Append("Battle: ").Append(battleStatus);
             return builder.ToString();
         }
 
@@ -240,6 +286,35 @@ namespace MagicMotion.UI
                 .Append(",").Append(normal.y.ToString("0.00"))
                 .Append(",").Append(normal.z.ToString("0.00")).Append(")")
                 .AppendLine();
+        }
+
+        /// Decides the too-far verdict with hysteresis: the palm must pass one
+        /// threshold to raise it and a higher one to clear it, and the new
+        /// verdict has to hold before it is adopted.
+        private void UpdateTooFarState()
+        {
+            var palmWidth = trackingProvider != null ? trackingProvider.LastMaxPalmWidth : 0f;
+            if (palmWidth <= 0f)
+            {
+                // No hand in frame: hold the last verdict instead of flipping on
+                // the zero width, which would flicker between frames.
+                return;
+            }
+
+            var threshold = tooFar ? motionConfig.farPalmWidthExit : motionConfig.nearEnoughPalmWidth;
+            var wanted = palmWidth < threshold;
+            var now = Time.unscaledTime;
+            if (wanted != pendingTooFar)
+            {
+                pendingTooFar = wanted;
+                pendingTooFarSince = now;
+                return;
+            }
+
+            if (now - pendingTooFarSince >= HintStabilitySeconds)
+            {
+                tooFar = pendingTooFar;
+            }
         }
 
         private string BuildHint()
@@ -268,10 +343,9 @@ namespace MagicMotion.UI
             // produces the same paltry growth as everyday hand movement, so no
             // threshold can separate them there. Say so rather than leaving the
             // user pushing into a range that cannot work.
-            var palmWidth = trackingProvider != null ? trackingProvider.LastMaxPalmWidth : 0f;
-            if (palmWidth > 0f && palmWidth < motionConfig.nearEnoughPalmWidth)
+            if (tooFar)
             {
-                return "Too far: move closer to the camera";
+                return TooFarHint;
             }
 
             return "Palm facing camera, then push forward fast";
@@ -405,6 +479,13 @@ namespace MagicMotion.UI
                 fontSize = Mathf.RoundToInt(15f * Mathf.Clamp(Screen.dpi > 0f ? Screen.dpi / 160f : 1f, 1f, 2f)),
                 normal = { textColor = new Color(0.45f, 1f, 0.88f) },
                 wordWrap = true
+            };
+            hintStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = Mathf.RoundToInt(24f * Mathf.Clamp(Screen.dpi > 0f ? Screen.dpi / 160f : 1f, 1f, 2f)),
+                normal = { textColor = new Color(1f, 0.85f, 0.25f) },
+                wordWrap = true,
+                fontStyle = FontStyle.Bold
             };
         }
 
