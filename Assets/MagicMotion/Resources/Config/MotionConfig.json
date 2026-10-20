@@ -5,6 +5,7 @@
   "minimumScaleGrowthFar": 0.40,
   "nearPalmWidth": 0.105,
   "nearEnoughPalmWidth": 0.08,
+  "farPalmWidthExit": 0.095,
   "minimumScaleVelocity": 0.10,
   "minimumDepthChange": 0.015,
   "maximumLateralDrift": 3.0,

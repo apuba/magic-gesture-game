@@ -29,6 +29,11 @@ namespace MagicMotion.Config
         // instead of silently doing nothing. A hint, not a gate: detection is
         // left alone because its own thresholds already reject far interference.
         public float nearEnoughPalmWidth = 0.08f;
+        // Hysteresis partner for nearEnoughPalmWidth: once the too-far hint is
+        // on, the palm has to grow past this before it clears. Without the gap,
+        // per-frame jitter in the estimated width flipped the hint several times
+        // a second, which flickered the panel and re-triggered the spoken hint.
+        public float farPalmWidthExit = 0.095f;
         public float minimumScaleVelocity = 0.25f;
         public float minimumDepthChange = 0.04f;
         public float maximumLateralDrift = 0.75f;
