@@ -23,6 +23,7 @@ namespace MagicMotion.Camera
         public CameraState State { get; private set; } = CameraState.Stopped;
         public bool IsRunning => State == CameraState.Running && cameraTexture != null && cameraTexture.isPlaying;
         public WebCamTexture Texture => cameraTexture;
+        public bool IsFrontFacing => cameraTexture != null && activeDevice.isFrontFacing;
 
         public void StartCamera()
         {
