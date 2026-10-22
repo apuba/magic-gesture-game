@@ -42,6 +42,18 @@ namespace MagicMotion.Tests
             return Build(points);
         }
 
+        public static HandData SwordFinger()
+        {
+            var points = BasePalm();
+            Set(points, 1, -0.30f, 0.25f); Set(points, 2, -0.45f, 0.45f);
+            Set(points, 3, -0.20f, 0.55f); Set(points, 4, 0.00f, 0.42f);
+            SetStraightFinger(points, 5, -0.12f, 0.75f);
+            SetStraightFinger(points, 9, 0.02f, 0.85f);
+            SetFoldedFinger(points, 13, 0.15f, 0.80f);
+            SetFoldedFinger(points, 17, 0.45f, 0.68f);
+            return Build(points);
+        }
+
         private static List<Vector3> BasePalm()
         {
             var points = new List<Vector3>(new Vector3[HandData.RequiredLandmarkCount]);
