@@ -59,6 +59,7 @@ namespace MagicMotion.UI
         private string lastRejection = "-";
 
         private CameraManager cameraManager;
+        private HandTrackingDebugView handTrackingDebugView;
         private VisionPipeline visionPipeline;
         private MediaPipeHandTrackingProvider trackingProvider;
         private PalmDirectionClassifier palmClassifier;
@@ -92,6 +93,7 @@ namespace MagicMotion.UI
                 speech = gameObject.AddComponent<SpeechFeedback>();
             }
             trackingProvider = FindFirstObjectByType<MediaPipeHandTrackingProvider>();
+            handTrackingDebugView = FindFirstObjectByType<HandTrackingDebugView>();
             palmClassifier = new PalmDirectionClassifier();
             fpsCounter = new FpsCounter();
             gestures[Handedness.Left] = GestureType.Unknown;
@@ -160,7 +162,8 @@ namespace MagicMotion.UI
 
         private void OnGUI()
         {
-            if (!visible || (!Debug.isDebugBuild && !Application.isEditor))
+            if (!visible || (!Debug.isDebugBuild && !Application.isEditor) ||
+                (handTrackingDebugView != null && !handTrackingDebugView.IsStatusTextVisible))
             {
                 return;
             }
@@ -174,14 +177,9 @@ namespace MagicMotion.UI
             var rect = new Rect(safe.xMin + 12f, topInset + 12f, width, height);
             GUI.Box(rect, GUIContent.none, panelStyle);
 
-            var previewHeight = Mathf.Min((rect.width - 28f) * 0.62f, rect.height * 0.42f);
-            var previewRect = new Rect(
-                rect.x + 14f,
-                rect.yMax - previewHeight - 14f,
-                rect.width - 28f,
-                previewHeight);
-            DrawCameraPreview(previewRect);
-
+            // The hand-tracking overlay already owns the full-screen camera
+            // texture. Do not draw a second camera preview inside the debug HUD;
+            // on portrait devices that appeared as a picture-in-picture window.
             var content = BuildText();
             // The hint is the one line the user must act on, so it gets its own
             // large, bright block above the camera preview instead of a buried
@@ -189,44 +187,16 @@ namespace MagicMotion.UI
             var hintHeight = Mathf.Min(120f * scale, rect.height * 0.25f);
             var hintRect = new Rect(
                 rect.x + 14f,
-                previewRect.y - hintHeight - 10f,
+                rect.yMax - hintHeight - 14f,
                 rect.width - 28f,
                 hintHeight);
             var textRect = new Rect(
                 rect.x + 14f,
                 rect.y + 12f,
                 rect.width - 28f,
-                rect.height - previewHeight - hintHeight - 60f);
+                rect.height - hintHeight - 40f);
             GUI.Label(textRect, content, labelStyle);
             GUI.Label(hintRect, lastHint ?? string.Empty, hintStyle);
-        }
-
-        private void DrawCameraPreview(Rect rect)
-        {
-            var texture = cameraManager != null ? cameraManager.Texture : null;
-            if (texture == null || texture.width <= 16)
-            {
-                return;
-            }
-
-            var rotation = texture.videoRotationAngle;
-            var swapped = rotation == 90 || rotation == 270;
-            var drawRect = swapped
-                ? new Rect(
-                    rect.center.x - rect.height * 0.5f,
-                    rect.center.y - rect.width * 0.5f,
-                    rect.height,
-                    rect.width)
-                : rect;
-
-            var previous = GUI.matrix;
-            var pivot = new Vector2(rect.center.x, rect.center.y);
-            // GUI's y axis points down, so a positive Euler angle rotates
-            // clockwise on screen, matching videoRotationAngle's convention.
-            GUI.matrix = Matrix4x4.TRS(pivot, Quaternion.Euler(0f, 0f, rotation), Vector3.one) *
-                         Matrix4x4.TRS(-pivot, Quaternion.identity, Vector3.one);
-            GUI.DrawTexture(drawRect, texture, ScaleMode.ScaleToFit);
-            GUI.matrix = previous;
         }
 
         private string BuildText()

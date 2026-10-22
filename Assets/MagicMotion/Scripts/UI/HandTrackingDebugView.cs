@@ -69,6 +69,10 @@ namespace MagicMotion.UI
         // both cases instead of only while the camera is drawn.
         public bool IsOverlayVisible => visible;
 
+        // DebugHud uses the same switch so the settings panel controls all
+        // diagnostic text, not only the small status line drawn here.
+        public bool IsStatusTextVisible => overlaySettings == null || overlaySettings.ShowStatusText;
+
         private void Start()
         {
             visible = Debug.isDebugBuild || Application.isEditor;
@@ -90,6 +94,7 @@ namespace MagicMotion.UI
         private void Update()
         {
             displayFps.AddFrame(Time.unscaledDeltaTime);
+            UpdateRenderedLandmarks();
             if (!Mathf.Approximately(appliedHoverSeconds, overlaySettings.HoverSeconds))
             {
                 // The trackers keep their timing in readonly fields, so a change
@@ -424,11 +429,11 @@ namespace MagicMotion.UI
         /// positions towards the latest result every drawn frame turns those
         /// steps into continuous motion without waiting for the next detection.
         /// </summary>
-        private const float RenderSmoothingSeconds = 0.05f;
+        private const float RenderSmoothingSeconds = 0.025f;
 
         // How fast the drawn trail anchor closes on the latest detection. It
         // is kept short so a quick wave is not smeared into a slow curve.
-        private const float TrailFollowSeconds = 0.05f;
+        private const float TrailFollowSeconds = 0.025f;
 
         private void UpdateRenderedLandmarks()
         {
@@ -452,8 +457,6 @@ namespace MagicMotion.UI
             }
 
             var blend = 1f - Mathf.Exp(-Time.unscaledDeltaTime / RenderSmoothingSeconds);
-            UpdateRenderedLandmarks();
-
             for (var handIndex = 0; handIndex < displayedHands.Count; handIndex++)
             {
                 var hand = displayedHands[handIndex];
@@ -546,7 +549,7 @@ namespace MagicMotion.UI
                 if (font != null)
                 {
                     settingsButtonStyle.font = font;
-                    font.RequestCharactersInTexture("设置", settingsButtonStyle.fontSize);
+                    font.RequestCharactersInTexture("设置", settingsButtonStyle.fontSize, FontStyle.Normal);
                 }
                 else
                 {
