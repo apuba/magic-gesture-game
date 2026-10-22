@@ -9,17 +9,36 @@ namespace MagicMotion.UI
         {
             Position = position;
             Timestamp = timestamp;
+            BreakBefore = false;
+            FromTip = false;
+        }
+
+        public TimedTrailPoint(Vector3 position, double timestamp, bool breakBefore, bool fromTip)
+        {
+            Position = position;
+            Timestamp = timestamp;
+            BreakBefore = breakBefore;
+            FromTip = fromTip;
         }
 
         public Vector3 Position { get; }
         public double Timestamp { get; }
+
+        // Set on the first point after the trail switched anchor, so the old
+        // segment can fade out on its own instead of being erased.
+        public bool BreakBefore { get; }
+
+        // True when the point was sampled from the index fingertip, false when
+        // it came from the palm centre, so the trail can colour them apart.
+        public bool FromTip { get; }
     }
 
     public sealed class TimedHandTrail
     {
-        private readonly float lifetimeSeconds;
+        private float lifetimeSeconds;
         private readonly float minimumPointDistance;
         private readonly List<TimedTrailPoint> points = new List<TimedTrailPoint>(64);
+        private bool breakPending;
 
         public TimedHandTrail(float lifetimeSeconds = 0.65f, float minimumPointDistance = 0.01f)
         {
@@ -29,13 +48,30 @@ namespace MagicMotion.UI
 
         public IReadOnlyList<TimedTrailPoint> Points => points;
 
-        public void Add(Vector3 position, double timestamp)
+        public void MarkBreak()
+        {
+            breakPending = true;
+        }
+
+        public void Clear()
+        {
+            points.Clear();
+        }
+
+        public float LifetimeSeconds
+        {
+            get { return lifetimeSeconds; }
+            set { lifetimeSeconds = Mathf.Max(0.05f, value); }
+        }
+
+        public void Add(Vector3 position, double timestamp, bool fromTip = false)
         {
             Prune(timestamp);
             if (points.Count == 0 ||
                 Vector3.Distance(points[points.Count - 1].Position, position) >= minimumPointDistance)
             {
-                points.Add(new TimedTrailPoint(position, timestamp));
+                points.Add(new TimedTrailPoint(position, timestamp, breakPending, fromTip));
+                breakPending = false;
             }
         }
 
