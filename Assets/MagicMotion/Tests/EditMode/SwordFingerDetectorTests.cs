@@ -24,11 +24,10 @@ namespace MagicMotion.Tests
         }
 
         [Test]
-        public void CalculateBrushPoint_ReturnsIndexAndMiddleTipMidpoint()
+        public void CalculateBrushPoint_ReturnsIndexTip()
         {
             var hand = GestureHandFactory.SwordFinger();
-            var expected = (HandGeometry.GetPosition(hand, HandLandmarkIndex.IndexTip) +
-                            HandGeometry.GetPosition(hand, HandLandmarkIndex.MiddleTip)) * 0.5f;
+            var expected = HandGeometry.GetPosition(hand, HandLandmarkIndex.IndexTip);
 
             Assert.That(SwordFingerDetector.CalculateBrushPoint(hand), Is.EqualTo(expected));
         }

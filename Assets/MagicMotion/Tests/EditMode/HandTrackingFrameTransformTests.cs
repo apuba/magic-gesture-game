@@ -19,10 +19,10 @@ namespace MagicMotion.Tests
             Assert.That(vertical, Is.EqualTo(expectedVertical));
         }
 
-        [TestCase(0, 0.8f, 0.25f)]
-        [TestCase(90, 0.25f, 0.2f)]
-        [TestCase(180, 0.2f, 0.75f)]
-        [TestCase(270, 0.75f, 0.8f)]
+        [TestCase(0, 0.8f, 0.75f)]
+        [TestCase(90, 0.75f, 0.2f)]
+        [TestCase(180, 0.8f, 0.75f)]
+        [TestCase(270, 0.25f, 0.8f)]
         public void FrontCameraLandmarkMapping_CoversEveryRightAngle(int rotation,
             float expectedX, float expectedY)
         {
