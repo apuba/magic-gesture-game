@@ -55,7 +55,7 @@ namespace MagicMotion.Vision
         // A face fit usually survives a frame or two, a real hand does not stop
         // being detected, so three sightings inside the window are required
         // before a hand is published.
-        private const int RequiredSightings = 3;
+        private const int RequiredSightings = 1;
 
         private const int LogIntervalFrames = 150;
 

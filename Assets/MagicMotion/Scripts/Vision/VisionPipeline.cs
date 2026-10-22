@@ -11,11 +11,12 @@ namespace MagicMotion.Vision
     public sealed class VisionPipeline : MonoBehaviour
     {
         [SerializeField] private MonoBehaviour trackingProviderBehaviour;
-        [SerializeField, Range(0f, 0.95f)] private float landmarkSmoothing = 0.65f;
+        [SerializeField, Range(0f, 0.95f)] private float landmarkSmoothing = 0.2f;
 
         private ICameraFrameSource cameraSource;
         private IHandTrackingProvider trackingProvider;
         private FrameRateGate frameRateGate;
+        private int trackingRate = 30;
         private LandmarkSmoother smoother;
 
         public VisionStatus Status { get; private set; } = VisionStatus.Stopped;
@@ -24,12 +25,27 @@ namespace MagicMotion.Vision
         public int FramesProcessed { get; private set; }
         public int ResultsPublished { get; private set; }
 
+        public int TrackingRate
+        {
+            get => trackingRate;
+            set
+            {
+                var clamped = Mathf.Clamp(value, 1, 60);
+                if (trackingRate == clamped && frameRateGate != null)
+                {
+                    return;
+                }
+
+                trackingRate = clamped;
+                frameRateGate = new FrameRateGate(trackingRate);
+            }
+        }
+
         private void Start()
         {
             var cameraManager = FindFirstObjectByType<CameraManager>();
             var configManager = FindFirstObjectByType<ConfigManager>();
-            var visionFrameRate = configManager?.Game?.visionFrameRate ?? 15;
-            frameRateGate = new FrameRateGate(visionFrameRate);
+            TrackingRate = configManager?.Game?.visionFrameRate ?? 30;
             smoother = new LandmarkSmoother(landmarkSmoothing);
             cameraSource = cameraManager;
 

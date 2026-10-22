@@ -3,7 +3,7 @@
   "trainingScene": "TrainingScene",
   "battleScene": "BattleScene",
   "targetFrameRate": 30,
-  "visionFrameRate": 15,
+  "visionFrameRate": 30,
   "cameraWidth": 1280,
   "cameraHeight": 720,
   "cameraFrameRate": 30,

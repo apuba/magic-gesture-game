@@ -20,6 +20,7 @@ namespace MagicMotion.UI
         private const string KeyBackgroundBlue = "mm.ov.bgB";
         private const string KeyFrameRate = "mm.ov.fps";
         private const string KeyTrackingRate = "mm.ov.track";
+        private const string KeyTrackingRateVersion = "mm.ov.track.version";
         private const string KeyHoverSeconds = "mm.ov.hover";
 
         private static readonly Color[] Presets =
@@ -50,7 +51,7 @@ namespace MagicMotion.UI
         public bool ShowCamera { get; set; } = true;
         public Color BackgroundColor { get; set; } = Color.black;
         public int TargetFrameRate { get; set; } = 30;
-        public int TrackingRate { get; set; } = 20;
+        public int TrackingRate { get; set; } = 30;
 
         // How long the pointing pose must be held before the rune meter arms
         // itself. One second felt sluggish, so the default is much shorter and
@@ -70,8 +71,21 @@ namespace MagicMotion.UI
                 storedFrameRate == 45 ? 45 :
                 storedFrameRate == 60 ? 60 : 30;
 
-            var storedTrackingRate = PlayerPrefs.GetInt(KeyTrackingRate, 20);
+            // Version 1 defaulted to 20 FPS and was written on devices before
+            // the control was actually connected to VisionPipeline. Migrate
+            // that stale value once so existing installs receive the low-latency
+            // 30 FPS default while later user choices remain persistent.
+            var trackingRateVersion = PlayerPrefs.GetInt(KeyTrackingRateVersion, 1);
+            var storedTrackingRate = trackingRateVersion < 2
+                ? 30
+                : PlayerPrefs.GetInt(KeyTrackingRate, 30);
             TrackingRate = Mathf.Clamp(storedTrackingRate, 10, 30);
+            if (trackingRateVersion < 2)
+            {
+                PlayerPrefs.SetInt(KeyTrackingRate, TrackingRate);
+                PlayerPrefs.SetInt(KeyTrackingRateVersion, 2);
+                PlayerPrefs.Save();
+            }
             HoverSeconds = Mathf.Clamp(PlayerPrefs.GetFloat(KeyHoverSeconds, 0.35f), 0.3f, 1f);
             BackgroundColor = new Color(
                 PlayerPrefs.GetFloat(KeyBackgroundRed, 0f),
@@ -89,6 +103,7 @@ namespace MagicMotion.UI
             PlayerPrefs.SetInt(KeyShowCamera, ShowCamera ? 1 : 0);
             PlayerPrefs.SetInt(KeyFrameRate, TargetFrameRate);
             PlayerPrefs.SetInt(KeyTrackingRate, TrackingRate);
+            PlayerPrefs.SetInt(KeyTrackingRateVersion, 2);
             PlayerPrefs.SetFloat(KeyHoverSeconds, HoverSeconds);
             PlayerPrefs.SetFloat(KeyBackgroundRed, BackgroundColor.r);
             PlayerPrefs.SetFloat(KeyBackgroundGreen, BackgroundColor.g);
