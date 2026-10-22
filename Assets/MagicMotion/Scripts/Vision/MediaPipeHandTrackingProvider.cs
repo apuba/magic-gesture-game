@@ -14,10 +14,14 @@ namespace MagicMotion.Vision
     {
         private const string ModelResourcePath = "Models/hand_landmarker";
 
+        // One gesture hand is tracked: each extra hand costs another pass of
+        // the palm detector and the landmark model on every processed frame.
+        private const int MaxHands = 1;
+
         // At one metre and beyond the hand occupies a small part of the frame.
         // Use a lower detector threshold for recall, while gesture, palm,
         // motion and temporal gates continue to reject false skill casts.
-        [SerializeField, Range(0f, 1f)] private float minimumDetectionConfidence = 0.40f;
+        [SerializeField, Range(0f, 1f)] private float minimumDetectionConfidence = 0.45f;
         [SerializeField, Range(0f, 1f)] private float minimumPresenceConfidence = 0.45f;
         [SerializeField, Range(0f, 1f)] private float minimumTrackingConfidence = 0.45f;
 
@@ -33,6 +37,25 @@ namespace MagicMotion.Vision
         private float lastMaxPalmWidth;
         private int lastInputWidth;
         private int lastInputHeight;
+        private bool gpuActive;
+        private readonly Dictionary<Handedness, double> lastHandSeen =
+            new Dictionary<Handedness, double>();
+        private readonly Dictionary<Handedness, int> sightingCounts =
+            new Dictionary<Handedness, int>();
+        private int rejectedHands;
+
+        // A face can hold a hand-shaped fit for a frame or two, but a real hand
+        // keeps being detected. A new hand therefore needs a second sighting
+        // within this window before it is published. Counting plain
+        // consecutive frames would permanently hide a hand that the detector
+        // only finds intermittently, which showed up as a missing skeleton
+        // in one orientation.
+        private const double PresenceWindowSeconds = 0.6;
+
+        // A face fit usually survives a frame or two, a real hand does not stop
+        // being detected, so three sightings inside the window are required
+        // before a hand is published.
+        private const int RequiredSightings = 3;
 
         private const int LogIntervalFrames = 150;
 
@@ -59,21 +82,55 @@ namespace MagicMotion.Vision
                     $"MediaPipe model is missing at Resources/{ModelResourcePath}.bytes");
             }
 
-            var baseOptions = new BaseOptions(
-                BaseOptions.Delegate.CPU,
-                modelAssetBuffer: model.bytes);
-            var options = new HandLandmarkerOptions(
-                baseOptions,
+            lastInputWidth = 0;
+            lastInputHeight = 0;
+            lastTimestampMilliseconds = -1;
+            gpuActive = false;
+            handLandmarker = CreateLandmarker(model.bytes);
+            reusableResult = HandLandmarkerResult.Alloc(MaxHands);
+        }
+
+        /// <summary>
+        /// The game reacts to one gesture at a time, so tracking two hands only
+        /// doubles the inference cost. The GPU delegate is preferred because CPU
+        /// inference is what capped the pipeline near ten frames per second; it
+        /// falls back to CPU when the device cannot provide it, and the whole
+        /// preference can be forced off with the mm.vision.gpu preference.
+        /// </summary>
+        private HandLandmarker CreateLandmarker(byte[] modelBuffer)
+        {
+            var preferGpu = PlayerPrefs.GetInt("mm.vision.gpu", 1) == 1;
+            if (preferGpu)
+            {
+                try
+                {
+                    var gpu = HandLandmarker.CreateFromOptions(new HandLandmarkerOptions(
+                        new BaseOptions(BaseOptions.Delegate.GPU, modelAssetBuffer: modelBuffer),
+                        RunningMode.VIDEO,
+                        numHands: MaxHands,
+                        minHandDetectionConfidence: minimumDetectionConfidence,
+                        minHandPresenceConfidence: minimumPresenceConfidence,
+                        minTrackingConfidence: minimumTrackingConfidence));
+                    gpuActive = true;
+                    Debug.Log("[MagicMotion.Vision] Hand Landmarker initialized (GPU, one hand).");
+                    return gpu;
+                }
+                catch (Exception gpuException)
+                {
+                    Debug.LogWarning(
+                        $"[MagicMotion.Vision] GPU delegate unavailable, falling back to CPU: {gpuException.Message}");
+                }
+            }
+
+            gpuActive = false;
+            Debug.Log("[MagicMotion.Vision] Hand Landmarker initialized (CPU, one hand).");
+            return HandLandmarker.CreateFromOptions(new HandLandmarkerOptions(
+                new BaseOptions(BaseOptions.Delegate.CPU, modelAssetBuffer: modelBuffer),
                 RunningMode.VIDEO,
-                numHands: 2,
+                numHands: MaxHands,
                 minHandDetectionConfidence: minimumDetectionConfidence,
                 minHandPresenceConfidence: minimumPresenceConfidence,
-                minTrackingConfidence: minimumTrackingConfidence);
-
-            handLandmarker = HandLandmarker.CreateFromOptions(options);
-            reusableResult = HandLandmarkerResult.Alloc(2);
-            lastTimestampMilliseconds = -1;
-            Debug.Log("[MagicMotion.Vision] MediaPipe Hand Landmarker initialized (CPU, two hands).");
+                minTrackingConfidence: minimumTrackingConfidence));
         }
 
         public void ProcessFrame(CameraFrame frame)
@@ -93,11 +150,16 @@ namespace MagicMotion.Vision
             lastInputHeight = frame.Texture.height;
             frame.Texture.GetPixels32(pixelBuffer);
             HandTrackingFrameTransform.GetMediaPipeInputFlips(
-                frame.FrontFacing, frame.VerticallyMirrored, frame.RotationDegrees,
-                out var flipHorizontally, out var flipVertically);
+                frame.FrontFacing,
+                frame.VerticallyMirrored,
+                frame.RotationDegrees,
+                out var flipHorizontally,
+                out var flipVertically);
             CorrectCameraMirroring(pixelBuffer, frame.Texture.width, frame.Texture.height,
                 flipHorizontally, flipVertically);
-            lastFrameLuma = CalculateLuma(pixelBuffer);
+            lastFrameLuma = processedFrames % LogIntervalFrames == 0
+                ? CalculateLuma(pixelBuffer)
+                : 0f;
             textureFrame.SetPixels32(pixelBuffer);
 
             var timestampMilliseconds = Math.Max(
@@ -115,6 +177,7 @@ namespace MagicMotion.Vision
                 ref reusableResult);
 
             ConvertResult(detected ? reusableResult : default, convertedHands);
+            FilterSpuriousHands(convertedHands);
             lastMaxPalmWidth = 0f;
             for (var handIndex = 0; handIndex < convertedHands.Count; handIndex++)
             {
@@ -133,7 +196,7 @@ namespace MagicMotion.Vision
                 Debug.Log(
                     $"[MagicMotion.Vision] processed={processedFrames} framesWithHands={framesWithHands} " +
                     $"luma={lastFrameLuma:0.000} input={lastInputWidth}x{lastInputHeight} " +
-                    $"palmWidth={lastMaxPalmWidth:0.000} rotation={frame.RotationDegrees} " +
+                    $"palmWidth={lastMaxPalmWidth:0.000} rejected={rejectedHands} rotation={frame.RotationDegrees} " +
                     $"mirrorV={frame.VerticallyMirrored} front={frame.FrontFacing}");
             }
 
@@ -141,6 +204,43 @@ namespace MagicMotion.Vision
                 frame.Sequence,
                 frame.Timestamp,
                 convertedHands.ToArray()));
+        }
+
+        private void FilterSpuriousHands(List<HandData> hands)
+        {
+            var now = Time.realtimeSinceStartupAsDouble;
+            for (var index = hands.Count - 1; index >= 0; index--)
+            {
+                var hand = hands[index];
+                if (!HandShapeValidator.IsPlausibleHand(hand))
+                {
+                    rejectedHands++;
+                    hands.RemoveAt(index);
+                    continue;
+                }
+
+                if (hand.Handedness == Handedness.Unknown)
+                {
+                    continue;
+                }
+
+                lastHandSeen.TryGetValue(hand.Handedness, out var lastSeen);
+                sightingCounts.TryGetValue(hand.Handedness, out var sightings);
+                var startingOver = lastSeen <= 0d;
+                if (!startingOver)
+                {
+                    startingOver = now - lastSeen > PresenceWindowSeconds;
+                }
+
+                sightings = startingOver ? 1 : sightings + 1;
+                sightingCounts[hand.Handedness] = sightings;
+                lastHandSeen[hand.Handedness] = now;
+
+                if (sightings < RequiredSightings)
+                {
+                    hands.RemoveAt(index);
+                }
+            }
         }
 
         private static float CalculateLuma(Color32[] pixels)
