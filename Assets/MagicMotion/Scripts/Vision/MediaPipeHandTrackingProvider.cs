@@ -92,8 +92,11 @@ namespace MagicMotion.Vision
             lastInputWidth = frame.Texture.width;
             lastInputHeight = frame.Texture.height;
             frame.Texture.GetPixels32(pixelBuffer);
+            HandTrackingFrameTransform.GetMediaPipeInputFlips(
+                frame.FrontFacing, frame.VerticallyMirrored, frame.RotationDegrees,
+                out var flipHorizontally, out var flipVertically);
             CorrectCameraMirroring(pixelBuffer, frame.Texture.width, frame.Texture.height,
-                frame.FrontFacing, frame.VerticallyMirrored);
+                flipHorizontally, flipVertically);
             lastFrameLuma = CalculateLuma(pixelBuffer);
             textureFrame.SetPixels32(pixelBuffer);
 
