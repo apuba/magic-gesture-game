@@ -33,6 +33,53 @@ namespace MagicMotion.UI
         public bool FromTip { get; }
     }
 
+    /// <summary>
+    /// Fills in the curve between two sampled points of a trail.
+    ///
+    /// A quick stroke leaves the samples far apart, and joining them with
+    /// straight segments puts a visible fold at every sample: an arc reads as
+    /// a polygon and a diagonal reads as a zigzag. This draws the arc instead.
+    /// It is a Catmull-Rom spline, which passes through every sample rather
+    /// than being pulled towards a smoothed average of them, so the curve
+    /// never lags behind the hand the way a moving average would, and a corner
+    /// the player actually drew stays a corner.
+    /// </summary>
+    public static class TrailCurve
+    {
+        // Centripetal: the knots go as the square root of the distance rather
+        // than the distance itself, which is what keeps the curve from looping
+        // back on itself or overshooting where the samples are unevenly spaced,
+        // exactly as a fast stroke spaces them.
+        private const float Alpha = 0.5f;
+
+        public static Vector2 Sample(Vector2 before, Vector2 from, Vector2 to, Vector2 after, float t)
+        {
+            var spanTo = Knot(from, to);
+            if (spanTo <= 0f)
+            {
+                return Vector2.Lerp(from, to, t);
+            }
+
+            // Hermite form: the tangents are the secants across the neighbouring
+            // spans, scaled to the length of this one.
+            var tangentFrom = (to - before) / Mathf.Max(Knot(before, from) + spanTo, 0.00001f);
+            var tangentTo = (after - from) / Mathf.Max(spanTo + Knot(to, after), 0.00001f);
+
+            var squared = t * t;
+            var cubed = squared * t;
+            return
+                (2f * cubed - 3f * squared + 1f) * from +
+                (cubed - 2f * squared + t) * spanTo * tangentFrom +
+                (-2f * cubed + 3f * squared) * to +
+                (cubed - squared) * spanTo * tangentTo;
+        }
+
+        private static float Knot(Vector2 a, Vector2 b)
+        {
+            return Mathf.Pow(Vector2.Distance(a, b), Alpha);
+        }
+    }
+
     public sealed class TimedHandTrail
     {
         private float lifetimeSeconds;

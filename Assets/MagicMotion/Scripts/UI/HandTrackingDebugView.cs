@@ -46,6 +46,8 @@ namespace MagicMotion.UI
         private readonly Dictionary<Handedness, Vector3[]> renderedLandmarks =
             new Dictionary<Handedness, Vector3[]>();
         private GUIStyle settingsButtonStyle;
+        private GUIStyle runeBuildMarkerStyle;
+        private RuneFollowView runeFollowView;
         private readonly Dictionary<Handedness, bool> trailFollowsTip =
             new Dictionary<Handedness, bool>();
         private readonly Dictionary<Handedness, int> pointingStreak =
@@ -86,6 +88,7 @@ namespace MagicMotion.UI
             visible = Debug.isDebugBuild || Application.isEditor;
             cameraManager = FindFirstObjectByType<CameraManager>();
             visionPipeline = FindFirstObjectByType<VisionPipeline>();
+            runeFollowView = FindFirstObjectByType<RuneFollowView>();
             displayFps = new FpsCounter();
             swordFingerDetector = new SwordFingerDetector();
             overlaySettings = new OverlaySettings();
@@ -433,10 +436,41 @@ namespace MagicMotion.UI
                     var alpha = trail.Alpha(points[index], now);
                     var tone = overlaySettings.TrailColor(points[index].FromTip);
                     var color = new Color(tone.r, tone.g, tone.b, alpha * 0.8f);
+                    var thickness = Mathf.Max(3f, Screen.dpi / 70f) *
+                        overlaySettings.TrailThickness * Mathf.Lerp(0.5f, 1f, alpha);
                     var from = MapPoint(content, points[index - 1].Position);
                     var to = MapPoint(content, points[index].Position);
-                    DrawLine(from, to, color,
-                        Mathf.Max(3f, Screen.dpi / 70f) * overlaySettings.TrailThickness * Mathf.Lerp(0.5f, 1f, alpha));
+
+                    var steps = Mathf.Clamp(
+                        Mathf.RoundToInt(Vector2.Distance(from, to) / CurveSegmentPixels),
+                        1, MaximumCurveSegments);
+                    if (steps == 1)
+                    {
+                        DrawLine(from, to, color, thickness);
+                        continue;
+                    }
+
+                    // The spline wants a sample either side of the span. Where
+                    // that neighbour is on the far side of a break, or there
+                    // isn't one, the missing end is mirrored instead of reused:
+                    // reusing it would leave a zero length knot and flatten the
+                    // curve into a straight line again.
+                    var before = index >= 2 && !points[index - 1].BreakBefore
+                        ? MapPoint(content, points[index - 2].Position)
+                        : from + (from - to);
+                    var after = index + 1 < points.Count && !points[index + 1].BreakBefore
+                        ? MapPoint(content, points[index + 1].Position)
+                        : to + (to - from);
+
+                    var start = from;
+                    for (var step = 1; step <= steps; step++)
+                    {
+                        var end = step == steps
+                            ? to
+                            : TrailCurve.Sample(before, from, to, after, (float)step / steps);
+                        DrawLine(start, end, color, thickness);
+                        start = end;
+                    }
                 }
             }
         }
@@ -489,6 +523,14 @@ namespace MagicMotion.UI
         // How fast the drawn trail anchor closes on the latest detection. It
         // is kept short so a quick wave is not smeared into a slow curve.
         private const float TrailFollowSeconds = 0.025f;
+
+        // A quicker stroke means the samples land further apart, so each span is
+        // drawn as a curve cut into pieces about this long. Short spans stay a
+        // single straight piece, so the cost is only paid where the stroke is
+        // quick enough to show folds, and the cap keeps a wild swing from
+        // turning into hundreds of draws.
+        private const float CurveSegmentPixels = 8f;
+        private const int MaximumCurveSegments = 12;
 
         private void UpdateRenderedLandmarks()
         {
@@ -624,6 +666,39 @@ namespace MagicMotion.UI
             {
                 settingsOpen = true;
             }
+
+            DrawRuneBuildMarker(rect, buttonScale);
+        }
+
+        private void DrawRuneBuildMarker(Rect settingsRect, float scale)
+        {
+            if (runeFollowView == null)
+            {
+                runeFollowView = FindFirstObjectByType<RuneFollowView>();
+            }
+
+            if (runeBuildMarkerStyle == null)
+            {
+                runeBuildMarkerStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.UpperRight,
+                    fontSize = Mathf.RoundToInt(11f * scale),
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = new Color(1f, 0.83f, 0.26f) }
+                };
+            }
+
+            var state = runeFollowView == null
+                ? "component=missing"
+                : $"events={runeFollowView.ReceivedResultCount} hands={runeFollowView.ValidHandsInLatestResult} " +
+                  $"visible={(runeFollowView.IsRuneVisible ? 1 : 0)} anchor={(runeFollowView.HasRenderAnchor ? 1 : 0)}\n" +
+                  $"draw={runeFollowView.DrawState}";
+            var markerRect = new Rect(
+                settingsRect.x - 190f * scale,
+                settingsRect.yMax + 5f * scale,
+                settingsRect.width + 190f * scale,
+                56f * scale);
+            GUI.Label(markerRect, $"{RuneFollowView.BuildMarker}\n{state}", runeBuildMarkerStyle);
         }
 
         private void DrawStatus(Rect viewport)
