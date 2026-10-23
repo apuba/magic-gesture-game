@@ -83,5 +83,39 @@ namespace MagicMotion.UI
             return tips + direction.normalized * HandGeometry.CalculatePalmWidth(hand) *
                 Mathf.Max(0f, forwardPalmWidths);
         }
+
+        /// <summary>
+        /// Where the rune sits while the player is opening the hand to release
+        /// it: in front of the palm rather than beyond the fingertips, because
+        /// the fingers are no longer joined to point from. Same reasoning about
+        /// the offset being relative to the hand, so the distance does not
+        /// change with how far the hand is from the lens.
+        /// </summary>
+        public static Vector3 CalculatePalmAnchor(
+            HandData hand, float widthToHeight, float forwardPalmWidths = 0.35f)
+        {
+            var center = HandGeometry.CalculatePalmCenter(hand);
+            var normal = hand.PalmNormal;
+            if (normal.sqrMagnitude <= 0.000001f)
+            {
+                return center;
+            }
+
+            var aspect = Mathf.Max(widthToHeight, 0.0001f);
+
+            // The normal is a direction in normalized coordinates, so it has
+            // to be carried into square units before a palm width can scale it,
+            // then carried back out to sit alongside the landmarks.
+            var squared = HandGeometry.SquareDirection(normal.normalized, aspect);
+            if (squared.sqrMagnitude <= 0.000001f)
+            {
+                return center;
+            }
+
+            var distance = HandGeometry.CalculateSquarePalmWidth(hand, aspect) *
+                Mathf.Max(0f, forwardPalmWidths);
+            var offset = squared.normalized * distance;
+            return center + new Vector3(offset.x / aspect, offset.y, offset.z);
+        }
     }
 }
