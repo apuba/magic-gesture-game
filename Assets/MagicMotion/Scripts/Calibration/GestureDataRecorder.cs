@@ -18,7 +18,6 @@ namespace MagicMotion.Calibration
         {
             Idle,
             Ready,
-            Countdown,
             Recording,
             Review,
             Complete,
@@ -38,7 +37,6 @@ namespace MagicMotion.Calibration
             public int positiveTrials;
             public int negativeTrials;
             public int totalTrials;
-            public float countdownSeconds;
             public float recordingSeconds;
             public bool containsVideo;
             public GestureRecordingTrial[] plan;
@@ -147,7 +145,6 @@ namespace MagicMotion.Calibration
             public float velocity;
         }
 
-        private const float CountdownSeconds = 3f;
         private const float RecordingSeconds = 2f;
 
         // Button diameters as a share of screen width; big enough to hit from
@@ -191,7 +188,6 @@ namespace MagicMotion.Calibration
         private Texture2D bannerBackground;
         private AndroidJavaObject textToSpeech;
         private bool speechAvailable;
-        private int lastCountdownSecond;
 
         private GestureRecordingTrial CurrentTrial =>
             trialIndex >= 0 && trialIndex < plan.Count ? plan[trialIndex] : null;
@@ -221,16 +217,10 @@ namespace MagicMotion.Calibration
 
         private void Update()
         {
-            if (phase == RecorderPhase.Countdown && Time.realtimeSinceStartup >= phaseEndsAt)
-            {
-                BeginRecording();
-            }
-            else if (phase == RecorderPhase.Recording && Time.realtimeSinceStartup >= phaseEndsAt)
+            if (phase == RecorderPhase.Recording && Time.realtimeSinceStartup >= phaseEndsAt)
             {
                 FinishRecording();
             }
-
-            AnnounceCountdown();
         }
 
         private void OnGUI()
@@ -279,18 +269,13 @@ namespace MagicMotion.Calibration
 
         private void DrawGiantCue()
         {
-            // In Ready the cue is the where, during the countdown it is the when,
-            // and during recording it is the what: one word per phase so the
-            // three-step loop reads correctly without instructions.
+            // In Ready the cue is what the next trial asks for, and during
+            // recording it is that plus the time left, so the loop reads
+            // correctly without instructions. There is no countdown any more:
+            // the button starts the window straight away.
             if (phase == RecorderPhase.Ready)
             {
                 DrawGiantText(ShortCue(), new Color(0.35f, 0.95f, 1f));
-            }
-            else if (phase == RecorderPhase.Countdown)
-            {
-                DrawGiantText(
-                    Mathf.Max(1, Mathf.CeilToInt(phaseEndsAt - Time.realtimeSinceStartup)).ToString(),
-                    new Color(1f, 0.85f, 0.2f));
             }
             else if (phase == RecorderPhase.Recording)
             {
@@ -342,7 +327,7 @@ namespace MagicMotion.Calibration
                 case RecorderPhase.Ready:
                     if (CircleButton(CircleRect(0.5f, 0.56f, LargeButton), "开始", circlePrimaryTexture, circleTextLargeStyle))
                     {
-                        BeginCountdown();
+                        BeginRecording();
                     }
 
                     DrawStopButton();
@@ -415,9 +400,7 @@ namespace MagicMotion.Calibration
                 case RecorderPhase.Idle:
                     return "推掌数据采集：30 个正样本 + 15 个负样本，只保存数值关键点，不保存视频";
                 case RecorderPhase.Ready:
-                    return $"{ProgressHeader()} · 本次只做 1 次：点「开始」→ 倒计时内就位 → 听到「开始」再做";
-                case RecorderPhase.Countdown:
-                    return $"{ProgressHeader()} · 就位，先别做动作";
+                    return $"{ProgressHeader()} · 本次只做 1 次：点「开始」后立刻做 {ShortCue()}";
                 case RecorderPhase.Recording:
                     return $"{ProgressHeader()} · 现在做 1 次 {ShortCue()}，已采集 {currentTrialFrames} 帧";
                 case RecorderPhase.Review:
@@ -438,7 +421,6 @@ namespace MagicMotion.Calibration
                 : $"负样本 {acceptedNegative + 1}/15";
             var stage = phase switch
             {
-                RecorderPhase.Countdown => "准备",
                 RecorderPhase.Recording => "录制中",
                 RecorderPhase.Review => "确认",
                 _ => "按「开始」"
@@ -479,7 +461,6 @@ namespace MagicMotion.Calibration
                     positiveTrials = 30,
                     negativeTrials = 15,
                     totalTrials = plan.Count,
-                    countdownSeconds = CountdownSeconds,
                     recordingSeconds = RecordingSeconds,
                     containsVideo = false,
                     plan = plan.ToArray()
@@ -512,41 +493,6 @@ namespace MagicMotion.Calibration
                 false,
                 new UTF8Encoding(false),
                 65536);
-        }
-
-        private void BeginCountdown()
-        {
-            if (CurrentTrial == null)
-            {
-                return;
-            }
-
-            phase = RecorderPhase.Countdown;
-            phaseEndsAt = Time.realtimeSinceStartup + CountdownSeconds;
-            lastCountdownSecond = 0;
-            Speak(SpeechForTrial(CurrentTrial));
-        }
-
-        private void AnnounceCountdown()
-        {
-            if (phase != RecorderPhase.Countdown)
-            {
-                return;
-            }
-
-            var remaining = Mathf.Max(1, Mathf.CeilToInt(phaseEndsAt - Time.realtimeSinceStartup));
-            if (remaining == lastCountdownSecond)
-            {
-                return;
-            }
-
-            lastCountdownSecond = remaining;
-            Speak(remaining switch
-            {
-                3 => "三",
-                2 => "二",
-                _ => "一"
-            });
         }
 
         private string SpeechForTrial(GestureRecordingTrial trial)
@@ -634,6 +580,11 @@ namespace MagicMotion.Calibration
 
         private void BeginRecording()
         {
+            if (CurrentTrial == null)
+            {
+                return;
+            }
+
             try
             {
                 attempt++;
@@ -644,7 +595,7 @@ namespace MagicMotion.Calibration
                 phaseEndsAt = recordingStartedAt + RecordingSeconds;
                 phase = RecorderPhase.Recording;
                 WriteTrialRecord("started");
-                Speak("开始");
+                Speak(SpeechForTrial(CurrentTrial));
             }
             catch (Exception exception)
             {

@@ -48,6 +48,7 @@ namespace MagicMotion.UI
         private GUIStyle settingsButtonStyle;
         private GUIStyle runeBuildMarkerStyle;
         private RuneFollowView runeFollowView;
+        private RuneCastController runeCastController;
         private readonly Dictionary<Handedness, bool> trailFollowsTip =
             new Dictionary<Handedness, bool>();
         private readonly Dictionary<Handedness, int> pointingStreak =
@@ -89,6 +90,7 @@ namespace MagicMotion.UI
             cameraManager = FindFirstObjectByType<CameraManager>();
             visionPipeline = FindFirstObjectByType<VisionPipeline>();
             runeFollowView = FindFirstObjectByType<RuneFollowView>();
+            runeCastController = FindFirstObjectByType<RuneCastController>();
             displayFps = new FpsCounter();
             swordFingerDetector = new SwordFingerDetector();
             overlaySettings = new OverlaySettings();
@@ -392,7 +394,10 @@ namespace MagicMotion.UI
                     IsDrawingCamera = false;
                 }
                 DrawPalmTrails(content);
-                DrawSkeletons(content);
+                if (overlaySettings.ShowSkeleton)
+                {
+                    DrawSkeletons(content);
+                }
             }
 
             if (settingsOpen)
@@ -677,6 +682,11 @@ namespace MagicMotion.UI
                 runeFollowView = FindFirstObjectByType<RuneFollowView>();
             }
 
+            if (runeCastController == null)
+            {
+                runeCastController = FindFirstObjectByType<RuneCastController>();
+            }
+
             if (runeBuildMarkerStyle == null)
             {
                 runeBuildMarkerStyle = new GUIStyle(GUI.skin.label)
@@ -688,11 +698,13 @@ namespace MagicMotion.UI
                 };
             }
 
-            var state = runeFollowView == null
+            var state = runeCastController == null
                 ? "component=missing"
-                : $"events={runeFollowView.ReceivedResultCount} hands={runeFollowView.ValidHandsInLatestResult} " +
-                  $"visible={(runeFollowView.IsRuneVisible ? 1 : 0)} anchor={(runeFollowView.HasRenderAnchor ? 1 : 0)}\n" +
-                  $"draw={runeFollowView.DrawState}";
+                : $"events={runeCastController.ReceivedResultCount} " +
+                  $"hands={runeCastController.ValidHandsInLatestResult} " +
+                  $"visible={(runeFollowView != null && runeFollowView.IsRuneVisible ? 1 : 0)} " +
+                  $"anchor={(runeFollowView != null && runeFollowView.HasRenderAnchor ? 1 : 0)}\n" +
+                  $"draw={(runeFollowView == null ? "no-view" : runeFollowView.DrawState)}";
             var markerRect = new Rect(
                 settingsRect.x - 190f * scale,
                 settingsRect.yMax + 5f * scale,

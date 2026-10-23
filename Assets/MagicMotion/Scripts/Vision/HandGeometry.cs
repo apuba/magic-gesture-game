@@ -92,6 +92,40 @@ namespace MagicMotion.Vision
             return hand.Handedness == Handedness.Left ? normal : -normal;
         }
 
+        /// <summary>
+        /// Distance from the joined fingertips to the middle of the palm, in
+        /// units that are square on the frame. This is the height the talisman
+        /// is drawn at, so the paper is sized by the hand holding it: move the
+        /// hand nearer the lens and the rune grows with it, instead of staying a
+        /// fixed rectangle that looks right at one distance only.
+        /// </summary>
+        /// <remarks>
+        /// The depth axis is included, because a hand pointing at the lens has
+        /// most of its length along z and would otherwise measure as almost
+        /// nothing on screen. It is weighted rather than taken at face value:
+        /// depth is the noisiest number the tracker reports, so at a weight of
+        /// one the paper visibly pulses whenever the hand tilts. Zero measures
+        /// the rune against the hand as it appears on screen; one measures it
+        /// against the hand as it stands in space.
+        /// </remarks>
+        public static float CalculateFingerSpan(
+            HandData hand, float widthToHeight, float depthWeight = 0.5f)
+        {
+            var indexTip = GetPosition(hand, HandLandmarkIndex.IndexTip);
+            var middleTip = GetPosition(hand, HandLandmarkIndex.MiddleTip);
+            var tips = (indexTip + middleTip) * 0.5f;
+            var palm = CalculatePalmCenter(hand);
+
+            // Depth is normalised like x, so it needs the same stretch to sit on
+            // the same scale as y before it can be part of the length.
+            var squared = SquareDirection(tips - palm, widthToHeight);
+            var weight = Mathf.Clamp01(depthWeight);
+            var flat = new Vector2(squared.x, squared.y);
+            var depth = squared.z * weight;
+            return Mathf.Max(
+                new Vector3(flat.x, flat.y, depth).magnitude, MinimumScale);
+        }
+
         public static float NormalizedDistance(
             HandData hand,
             HandLandmarkIndex first,
