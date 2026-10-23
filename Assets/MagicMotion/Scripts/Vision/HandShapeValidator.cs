@@ -1,4 +1,6 @@
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
 using System.Globalization;
+#endif
 using UnityEngine;
 
 namespace MagicMotion.Vision
@@ -122,10 +124,13 @@ namespace MagicMotion.Vision
             return true;
         }
 
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
         /// <summary>
         /// Every ratio the verdict is taken on, plus the landmark box, all in
         /// the square units the bounds above are written in, so the numbers can
-        /// be read straight off logcat against those bounds.
+        /// be read straight off logcat against those bounds. Diagnostic only:
+        /// the shape checks never call it, so it is compiled out of a release
+        /// build.
         /// </summary>
         public static string DescribeMeasurements(HandData hand, float widthToHeight)
         {
@@ -170,6 +175,7 @@ namespace MagicMotion.Vision
                 CalculateBoxAspect(hand, widthToHeight),
                 minimumX, minimumY, maximumX, maximumY);
         }
+#endif
 
         /// <summary>
         /// Distance in units that are square on the frame. Normalized x spans
@@ -186,20 +192,13 @@ namespace MagicMotion.Vision
             HandLandmarkIndex second,
             float widthToHeight)
         {
-            var from = HandGeometry.GetPosition(hand, first);
-            var to = HandGeometry.GetPosition(hand, second);
-            var dx = (to.x - from.x) * widthToHeight;
-            var dz = (to.z - from.z) * widthToHeight;
-            var dy = to.y - from.y;
-            return Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+            return HandGeometry.SquareDistance(hand, first, second, widthToHeight);
         }
 
         private static float CalculatePalmWidth(HandData hand, float widthToHeight)
         {
             return Mathf.Max(
-                SquareDistance(
-                    hand, HandLandmarkIndex.IndexMcp, HandLandmarkIndex.PinkyMcp, widthToHeight),
-                MinimumPalmWidth);
+                HandGeometry.CalculateSquarePalmWidth(hand, widthToHeight), MinimumPalmWidth);
         }
 
         private static bool HasTipTooFarFromWrist(HandData hand, float palm, float widthToHeight)

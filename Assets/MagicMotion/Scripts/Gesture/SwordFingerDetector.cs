@@ -14,14 +14,14 @@ namespace MagicMotion.Gesture
             this.maximumTipSeparation = Mathf.Max(0.05f, maximumTipSeparation);
         }
 
-        public bool IsSwordFinger(HandData hand)
+        public bool IsSwordFinger(HandData hand, float widthToHeight)
         {
             if (hand == null || !hand.IsValid)
             {
                 return false;
             }
 
-            var fingers = fingerAnalyzer.Analyze(hand);
+            var fingers = fingerAnalyzer.Analyze(hand, widthToHeight);
             if (fingers.Index != FingerState.Extended ||
                 fingers.Middle != FingerState.Extended ||
                 fingers.Ring == FingerState.Extended ||
@@ -31,15 +31,34 @@ namespace MagicMotion.Gesture
                 return false;
             }
 
-            return HandGeometry.NormalizedDistance(
+            var palm = HandGeometry.CalculateSquarePalmWidth(hand, widthToHeight);
+            return HandGeometry.SquareDistance(
                 hand,
                 HandLandmarkIndex.IndexTip,
-                HandLandmarkIndex.MiddleTip) <= maximumTipSeparation;
+                HandLandmarkIndex.MiddleTip,
+                widthToHeight) / palm <= maximumTipSeparation;
+        }
+
+        // Exposed so a caller can report which finger is actually deciding a
+        // verdict, instead of only the verdict.
+        public FingerAnalysis Analyze(HandData hand, float widthToHeight)
+        {
+            return fingerAnalyzer.Analyze(hand, widthToHeight);
         }
 
         // Accepts both the two-finger sword pose and a single pointing index,
         // so the rune trail can start from either.
-        public bool IsPointing(HandData hand)
+        //
+        // The thumb is deliberately left out of the verdict. Turning the back
+        // of the hand towards the camera hides it, and the landmarks are then
+        // inferred from the palm side, which put both of its joint angles right
+        // on the extended threshold: measured on the reference phone in
+        // landscape it flipped between Bent and Extended every few frames while
+        // the index, the ring and the pinky never moved once, and the trail and
+        // the rune meter followed it. It decides nothing the ring and the pinky
+        // do not already decide, since an open hand is refused by those two
+        // whether or not the thumb can be seen.
+        public bool IsPointing(HandData hand, float widthToHeight)
         {
             if (hand == null)
             {
@@ -51,7 +70,7 @@ namespace MagicMotion.Gesture
                 return false;
             }
 
-            var fingers = fingerAnalyzer.Analyze(hand);
+            var fingers = fingerAnalyzer.Analyze(hand, widthToHeight);
             if (fingers.Index != FingerState.Extended)
             {
                 return false;
@@ -63,11 +82,6 @@ namespace MagicMotion.Gesture
             }
 
             if (fingers.Pinky == FingerState.Extended)
-            {
-                return false;
-            }
-
-            if (fingers.Thumb == FingerState.Extended)
             {
                 return false;
             }

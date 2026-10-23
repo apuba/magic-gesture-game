@@ -14,14 +14,14 @@ namespace MagicMotion.Gesture
             this.fistTipDistance = Mathf.Max(0.1f, fistTipDistance);
         }
 
-        public GestureClassification Classify(HandData hand)
+        public GestureClassification Classify(HandData hand, float widthToHeight)
         {
             if (hand == null || !hand.IsValid)
             {
                 return new GestureClassification(GestureType.Unknown, 0f, default);
             }
 
-            var fingers = fingerAnalyzer.Analyze(hand);
+            var fingers = fingerAnalyzer.Analyze(hand, widthToHeight);
             // The four long fingers define the open palm. During a forward push
             // the thumb often appears bent in perspective, so requiring all five
             // fingers to be perfectly straight made valid casts flicker Unknown.
@@ -30,7 +30,7 @@ namespace MagicMotion.Gesture
                 return new GestureClassification(GestureType.OpenPalm, hand.Confidence, fingers);
             }
 
-            if (fingers.ExtendedCount == 0 && FingertipsNearPalm(hand))
+            if (fingers.ExtendedCount == 0 && FingertipsNearPalm(hand, widthToHeight))
             {
                 return new GestureClassification(GestureType.Fist, hand.Confidence, fingers);
             }
@@ -38,10 +38,10 @@ namespace MagicMotion.Gesture
             return new GestureClassification(GestureType.Unknown, hand.Confidence, fingers);
         }
 
-        private bool FingertipsNearPalm(HandData hand)
+        private bool FingertipsNearPalm(HandData hand, float widthToHeight)
         {
             var center = HandGeometry.CalculatePalmCenter(hand);
-            var scale = HandGeometry.CalculatePalmWidth(hand);
+            var scale = HandGeometry.CalculateSquarePalmWidth(hand, widthToHeight);
             var tips = new[]
             {
                 HandLandmarkIndex.ThumbTip,
@@ -53,7 +53,8 @@ namespace MagicMotion.Gesture
 
             for (var index = 0; index < tips.Length; index++)
             {
-                var distance = Vector3.Distance(HandGeometry.GetPosition(hand, tips[index]), center) / scale;
+                var distance = HandGeometry.SquareDirection(
+                    HandGeometry.GetPosition(hand, tips[index]) - center, widthToHeight).magnitude / scale;
                 if (distance > fistTipDistance)
                 {
                     return false;

@@ -24,6 +24,44 @@ namespace MagicMotion.Vision
             return Mathf.Max(Vector3.Distance(indexMcp, pinkyMcp), MinimumScale);
         }
 
+        /// <summary>
+        /// Distance in units that are square on the frame. Normalized x spans
+        /// width pixels and y spans height pixels, so on a 16:9 frame a unit of
+        /// x covers almost twice as much of the hand as a unit of y: distances
+        /// and angles taken straight from normalized coordinates come out
+        /// different for the same hand lying one way or the other in the frame,
+        /// which is what made joint angles straddle their threshold as the
+        /// phone turned. Stretching x by width / height puts both axes on one
+        /// scale.
+        /// </summary>
+        public static float SquareDistance(
+            HandData hand,
+            HandLandmarkIndex first,
+            HandLandmarkIndex second,
+            float widthToHeight)
+        {
+            return SquareDirection(
+                GetPosition(hand, second) - GetPosition(hand, first), widthToHeight).magnitude;
+        }
+
+        /// <summary>
+        /// Stretches a normalized offset onto a square frame, so an angle
+        /// between two of them means the same thing whichever way the hand
+        /// happens to lie.
+        /// </summary>
+        public static Vector3 SquareDirection(Vector3 offset, float widthToHeight)
+        {
+            return new Vector3(offset.x * widthToHeight, offset.y, offset.z * widthToHeight);
+        }
+
+        public static float CalculateSquarePalmWidth(HandData hand, float widthToHeight)
+        {
+            return Mathf.Max(
+                SquareDistance(
+                    hand, HandLandmarkIndex.IndexMcp, HandLandmarkIndex.PinkyMcp, widthToHeight),
+                MinimumScale);
+        }
+
         public static Vector3 CalculatePalmCenter(HandData hand)
         {
             return (
