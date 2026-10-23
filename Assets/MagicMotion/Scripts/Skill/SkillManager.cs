@@ -45,6 +45,7 @@ namespace MagicMotion.Skill
             new Dictionary<string, SkillRuntimeState>();
 
         private PalmDirectionClassifier palmClassifier;
+        private RuneCastController runeCastController;
         private static readonly Handedness[] TrackedHands = { Handedness.Left, Handedness.Right };
 
         private void Start()
@@ -52,6 +53,8 @@ namespace MagicMotion.Skill
             palmClassifier = new PalmDirectionClassifier();
             handContexts[Handedness.Left] = new HandContext();
             handContexts[Handedness.Right] = new HandContext();
+
+            runeCastController = FindFirstObjectByType<RuneCastController>();
 
             var catalog = FindFirstObjectByType<ConfigManager>()?.Skills;
             if (catalog?.skills == null)
@@ -175,6 +178,15 @@ namespace MagicMotion.Skill
             // cast. Without this guard a rotating hand satisfied the remembered
             // "palm forward" requirement while its back was already to the lens.
             if (context.Palm == PalmDirection.Backward)
+            {
+                return;
+            }
+
+            // A rune is waiting to be released, so this push belongs to the spell
+            // and not to the bare palm strike. The event bus hands the message to
+            // every subscriber, so the only place the strike can be held back is
+            // here, before it is matched.
+            if (runeCastController != null && runeCastController.HasPendingRune)
             {
                 return;
             }
