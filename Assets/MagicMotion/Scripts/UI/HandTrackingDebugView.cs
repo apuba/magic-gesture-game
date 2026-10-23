@@ -59,6 +59,7 @@ namespace MagicMotion.UI
         private Texture2D whiteTexture;
         private GUIStyle statusStyle;
         private int currentRotation;
+        private bool currentVerticallyMirrored;
 
         // True while this view draws the full-screen camera picture, so other
         // HUDs can hide their own overlapping preview.
@@ -319,6 +320,7 @@ namespace MagicMotion.UI
             {
                 var rotation = HandTrackingFrameTransform.NormalizeRotation(texture.videoRotationAngle);
                 currentRotation = rotation;
+                currentVerticallyMirrored = texture.videoVerticallyMirrored;
                 var content = HandTrackingOverlayLayout.Fit(viewport, texture.width, texture.height, rotation);
                 if (overlaySettings.ShowCamera)
                 {
@@ -528,7 +530,7 @@ namespace MagicMotion.UI
         private Vector2 MapPoint(Rect content, Vector3 normalized)
         {
             var point = HandTrackingFrameTransform.LandmarkToGuiNormalized(
-                normalized, currentRotation, cameraManager.IsFrontFacing);
+                normalized, currentRotation, cameraManager.IsFrontFacing, currentVerticallyMirrored);
             point.x = content.xMin + Mathf.Clamp01(point.x) * content.width;
             point.y = content.yMin + Mathf.Clamp01(point.y) * content.height;
             return point;
@@ -581,7 +583,8 @@ namespace MagicMotion.UI
                 $"HAND TRACKING DEBUG  F4: hide\n" +
                 $"Camera: {cameraManager.State}  Vision: {visionPipeline?.Status.ToString() ?? "Missing"}\n" +
                 $"Hands: {detectedHands}  Display: {displayFps.Current:0.0} FPS  Tracking: {resultFps:0.0} FPS\n" +
-                $"Rot: {currentRotation}  Rune: {DescribeRuneState()}  Result age: {(ageMilliseconds < 0d ? "-" : ageMilliseconds.ToString("0") + " ms")}  " +
+                $"Rot: {currentRotation} MirrorV: {(currentVerticallyMirrored ? 1 : 0)}  Rune: {DescribeRuneState()}  " +
+                $"Result age: {(ageMilliseconds < 0d ? "-" : ageMilliseconds.ToString("0") + " ms")}  " +
                 $"Media time: {(double.IsNegativeInfinity(latestResultTimestamp) ? "-" : latestResultTimestamp.ToString("0.000") + " s")}";
             var scale = Mathf.Clamp(Screen.dpi > 0f ? Screen.dpi / 160f : 1f, 1f, 2f);
             var rect = new Rect(viewport.x + 12f, viewport.y + 12f,

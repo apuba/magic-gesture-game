@@ -43,6 +43,15 @@ namespace MagicMotion.Vision
         private readonly Dictionary<Handedness, int> sightingCounts =
             new Dictionary<Handedness, int>();
         private int rejectedHands;
+        private int lastRotation;
+        private double nextRejectedLogRealtime;
+        private double nextAcceptedLogRealtime;
+
+        // An orientation that gets rejected wholesale is invisible from the
+        // outside, so the ratios that decide the verdict go to logcat,
+        // throttled hard enough not to cost frames.
+        private const double RejectedLogIntervalSeconds = 1.5;
+        private const double AcceptedLogIntervalSeconds = 3.0;
 
         // A face can hold a hand-shaped fit for a frame or two, but a real hand
         // keeps being detected. A new hand therefore needs a second sighting
@@ -148,6 +157,7 @@ namespace MagicMotion.Vision
             EnsureFrameBuffer(frame.Texture.width, frame.Texture.height);
             lastInputWidth = frame.Texture.width;
             lastInputHeight = frame.Texture.height;
+            lastRotation = frame.RotationDegrees;
             frame.Texture.GetPixels32(pixelBuffer);
             HandTrackingFrameTransform.GetMediaPipeInputFlips(
                 frame.FrontFacing,
@@ -212,12 +222,15 @@ namespace MagicMotion.Vision
             for (var index = hands.Count - 1; index >= 0; index--)
             {
                 var hand = hands[index];
-                if (!HandShapeValidator.IsPlausibleHand(hand))
+                if (!HandShapeValidator.IsPlausibleHand(hand, FrameWidthToHeight()))
                 {
                     rejectedHands++;
                     hands.RemoveAt(index);
+                    LogHandMeasurements(hand, false);
                     continue;
                 }
+
+                LogHandMeasurements(hand, true);
 
                 if (hand.Handedness == Handedness.Unknown)
                 {
@@ -241,6 +254,41 @@ namespace MagicMotion.Vision
                     hands.RemoveAt(index);
                 }
             }
+        }
+
+        // The shape checks are ratios, and those only hold across orientations
+        // when the two axes are put on one scale first.
+        private float FrameWidthToHeight()
+        {
+            return lastInputHeight > 0 ? lastInputWidth / (float)lastInputHeight : 1f;
+        }
+
+        private void LogHandMeasurements(HandData hand, bool accepted)
+        {
+            var now = Time.realtimeSinceStartupAsDouble;
+            if (accepted)
+            {
+                if (now < nextAcceptedLogRealtime)
+                {
+                    return;
+                }
+
+                nextAcceptedLogRealtime = now + AcceptedLogIntervalSeconds;
+            }
+            else
+            {
+                if (now < nextRejectedLogRealtime)
+                {
+                    return;
+                }
+
+                nextRejectedLogRealtime = now + RejectedLogIntervalSeconds;
+            }
+
+            Debug.Log(
+                $"[MagicMotion.Vision] hand {(accepted ? "accepted" : "rejected")} " +
+                $"rot={lastRotation} input={lastInputWidth}x{lastInputHeight} " +
+                $"{HandShapeValidator.DescribeMeasurements(hand, FrameWidthToHeight())}");
         }
 
         private static float CalculateLuma(Color32[] pixels)
