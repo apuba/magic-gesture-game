@@ -35,13 +35,17 @@ namespace MagicMotion.UI
 
         // Drawing the overlay is what costs frames, so the ceiling is offered
         // as a user choice: 30 keeps the battery and the heat down, 60 matches
-        // the smoothness casual games aim for.
-        private static readonly int[] FrameRateValues = { 30, 45, 60 };
+        // the smoothness casual games aim for. 45 sat between the two without
+        // being a target anybody asked for, so it was dropped; an install that
+        // had it keeps the smoother end of what is left.
+        private static readonly int[] FrameRateValues = { 30, 60 };
 
         // How many camera frames the tracker is allowed to consume per second.
         // The camera tops out at 30 and a single frame costs tens of
-        // milliseconds, so 30 is the ceiling rather than a guarantee.
-        private static readonly int[] TrackingRateValues = { 10, 15, 20, 25, 30 };
+        // milliseconds, so 30 is the ceiling rather than a guarantee. The steps
+        // in between were dropped: they read as precision the tracker never
+        // actually delivered, and five of them left no room for the label.
+        private static readonly int[] TrackingRateValues = { 10, 20, 30 };
 
         public bool ShowStatusText { get; set; } = true;
         public bool ShowTrail { get; set; } = true;
@@ -66,20 +70,22 @@ namespace MagicMotion.UI
             TrailThickness = PlayerPrefs.GetFloat(KeyTrailThickness, 1f);
             TrailDualColor = PlayerPrefs.GetInt(KeyTrailDualColor, 1) == 1;
             ShowCamera = PlayerPrefs.GetInt(KeyShowCamera, 1) == 1;
-                        var storedFrameRate = PlayerPrefs.GetInt(KeyFrameRate, 30);
-            TargetFrameRate =
-                storedFrameRate == 45 ? 45 :
-                storedFrameRate == 60 ? 60 : 30;
+            // 45 is no longer offered, so an install that had it lands on the
+            // smoother of the two that remain.
+            var storedFrameRate = PlayerPrefs.GetInt(KeyFrameRate, 30);
+            TargetFrameRate = storedFrameRate >= 45 ? 60 : 30;
 
             // Version 1 defaulted to 20 FPS and was written on devices before
             // the control was actually connected to VisionPipeline. Migrate
             // that stale value once so existing installs receive the low-latency
             // 30 FPS default while later user choices remain persistent.
             var trackingRateVersion = PlayerPrefs.GetInt(KeyTrackingRateVersion, 1);
+            // 15 and 25 are gone from the picker, so a stored one is nudged to
+            // the nearest rate still offered rather than kept.
             var storedTrackingRate = trackingRateVersion < 2
                 ? 30
                 : PlayerPrefs.GetInt(KeyTrackingRate, 30);
-            TrackingRate = Mathf.Clamp(storedTrackingRate, 10, 30);
+            TrackingRate = SnapToOfferedRate(storedTrackingRate, TrackingRateValues);
             if (trackingRateVersion < 2)
             {
                 PlayerPrefs.SetInt(KeyTrackingRate, TrackingRate);
@@ -268,7 +274,7 @@ namespace MagicMotion.UI
                 HoverSeconds, 0.3f, 1f, HoverSeconds.ToString("0.00") + " 秒");
             cursor += rowHeight;
 
-            TrackingRate = DrawChoice(x, cursor, width, controlHeight, "跟踪频率", TrackingRateValues, TrackingRate);
+            TrackingRate = DrawChoice(x, cursor, width, controlHeight, "跟踪帧率", TrackingRateValues, TrackingRate);
             cursor += rowHeight;
 
             TargetFrameRate = DrawChoice(x, cursor, width, controlHeight, "画面帧率", FrameRateValues, TargetFrameRate);
@@ -283,6 +289,27 @@ namespace MagicMotion.UI
 
             GUI.EndScrollView();
             return closePressed;
+        }
+
+        // Picks the rate still offered that sits closest to a stored one, so
+        // dropping a step from the picker never leaves a setting behind that
+        // the panel cannot show. Ties round up, towards the more responsive
+        // rate.
+        private static int SnapToOfferedRate(int value, int[] offered)
+        {
+            var best = offered[0];
+            var bestDistance = Mathf.Abs(value - best);
+            for (var index = 1; index < offered.Length; index++)
+            {
+                var distance = Mathf.Abs(value - offered[index]);
+                if (distance <= bestDistance)
+                {
+                    best = offered[index];
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
         }
 
         private bool DrawToggle(float x, float cursor, float width, float controlHeight, string label, bool value)
@@ -303,15 +330,21 @@ namespace MagicMotion.UI
             string label, int[] values, int current)
         {
             var scale = DensityScale();
-            var buttonWidth = Mathf.Max(88f * scale, width * 0.2f);
-            GUI.Label(new Rect(x, cursor, width - buttonWidth * values.Length - 8f * scale, controlHeight),
-                label, textStyle);
+
+            // The label gets its slice first and the buttons share what is
+            // left. Sizing the buttons first and spending the remainder on the
+            // label left it with a negative width once a row offered five
+            // choices, and a negative width draws nothing at all, which is how
+            // these two rows came to lose their text entirely.
+            var labelWidth = Mathf.Max(88f * scale, width * 0.34f);
+            GUI.Label(new Rect(x, cursor, labelWidth, controlHeight), label, textStyle);
+            var buttonWidth = (width - labelWidth - 4f * scale) / values.Length;
             var result = current;
             for (var index = 0; index < values.Length; index++)
             {
                 var selected = values[index] == current;
                 var rect = new Rect(
-                    x + width - buttonWidth * (values.Length - index),
+                    x + labelWidth + 4f * scale + buttonWidth * index,
                     cursor,
                     buttonWidth - 4f * scale,
                     controlHeight);
