@@ -39,6 +39,37 @@ namespace MagicMotion.Gesture
                 widthToHeight) / palm <= maximumTipSeparation;
         }
 
+        /// <summary>
+        /// The two-finger pose used by the visible rune. It keeps the actual
+        /// sword-finger constraints, but intentionally does not make the
+        /// thumb a gate: it is frequently inferred as straight while the hand
+        /// back faces the camera. This is visual feedback only; future spell
+        /// sequencing can keep a stricter confirmation rule if needed.
+        /// </summary>
+        public bool IsRuneFinger(HandData hand, float widthToHeight)
+        {
+            if (hand == null || !hand.IsValid)
+            {
+                return false;
+            }
+
+            var fingers = fingerAnalyzer.Analyze(hand, widthToHeight);
+            if (fingers.Index != FingerState.Extended ||
+                fingers.Middle != FingerState.Extended ||
+                fingers.Ring == FingerState.Extended ||
+                fingers.Pinky == FingerState.Extended)
+            {
+                return false;
+            }
+
+            var palm = HandGeometry.CalculateSquarePalmWidth(hand, widthToHeight);
+            return HandGeometry.SquareDistance(
+                hand,
+                HandLandmarkIndex.IndexTip,
+                HandLandmarkIndex.MiddleTip,
+                widthToHeight) / palm <= maximumTipSeparation;
+        }
+
         // Exposed so a caller can report which finger is actually deciding a
         // verdict, instead of only the verdict.
         public FingerAnalysis Analyze(HandData hand, float widthToHeight)

@@ -41,6 +41,25 @@ namespace MagicMotion.Tests
         }
 
         [Test]
+        public void IsRuneFinger_IgnoresAnExtendedThumbButKeepsTwoFingerPose()
+        {
+            var detector = new SwordFingerDetector();
+            var hand = GestureHandFactory.PointingIndexWithThumbOut();
+
+            Assert.That(detector.IsSwordFinger(hand, SquareFrame), Is.False);
+            Assert.That(detector.IsRuneFinger(hand, SquareFrame), Is.True);
+        }
+
+        [Test]
+        public void IsPointing_AcceptsTheVisibleRuneFeedbackPose()
+        {
+            var detector = new SwordFingerDetector();
+            var hand = GestureHandFactory.PointingIndexWithThumbOut();
+
+            Assert.That(detector.IsPointing(hand, SquareFrame), Is.True);
+        }
+
+        [Test]
         public void CalculateBrushPoint_ReturnsIndexTip()
         {
             var hand = GestureHandFactory.SwordFinger();
