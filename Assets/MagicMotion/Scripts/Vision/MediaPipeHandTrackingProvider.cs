@@ -43,15 +43,18 @@ namespace MagicMotion.Vision
         private readonly Dictionary<Handedness, int> sightingCounts =
             new Dictionary<Handedness, int>();
         private int rejectedHands;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
         private int lastRotation;
         private double nextRejectedLogRealtime;
         private double nextAcceptedLogRealtime;
 
         // An orientation that gets rejected wholesale is invisible from the
         // outside, so the ratios that decide the verdict go to logcat,
-        // throttled hard enough not to cost frames.
+        // throttled hard enough not to cost frames. Diagnostic only, so a
+        // release build keeps none of it.
         private const double RejectedLogIntervalSeconds = 1.5;
         private const double AcceptedLogIntervalSeconds = 3.0;
+#endif
 
         // A face can hold a hand-shaped fit for a frame or two, but a real hand
         // keeps being detected. A new hand therefore needs a second sighting
@@ -83,6 +86,13 @@ namespace MagicMotion.Vision
             {
                 return;
             }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            // Announced on purpose: the diagnostics below are compiled out of a
+            // release build, so without this there is no way to tell from a
+            // running build whether they are in it at all.
+            Debug.Log("[MagicMotion.Vision] diagnostics on: hand shape and trail logging enabled");
+#endif
 
             var model = Resources.Load<TextAsset>(ModelResourcePath);
             if (model == null || model.bytes == null || model.bytes.Length == 0)
@@ -157,7 +167,9 @@ namespace MagicMotion.Vision
             EnsureFrameBuffer(frame.Texture.width, frame.Texture.height);
             lastInputWidth = frame.Texture.width;
             lastInputHeight = frame.Texture.height;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
             lastRotation = frame.RotationDegrees;
+#endif
             frame.Texture.GetPixels32(pixelBuffer);
             HandTrackingFrameTransform.GetMediaPipeInputFlips(
                 frame.FrontFacing,
@@ -213,7 +225,8 @@ namespace MagicMotion.Vision
             ResultReady?.Invoke(new HandTrackingResult(
                 frame.Sequence,
                 frame.Timestamp,
-                convertedHands.ToArray()));
+                convertedHands.ToArray(),
+                FrameWidthToHeight()));
         }
 
         private void FilterSpuriousHands(List<HandData> hands)
@@ -226,11 +239,15 @@ namespace MagicMotion.Vision
                 {
                     rejectedHands++;
                     hands.RemoveAt(index);
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
                     LogHandMeasurements(hand, false);
+#endif
                     continue;
                 }
 
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
                 LogHandMeasurements(hand, true);
+#endif
 
                 if (hand.Handedness == Handedness.Unknown)
                 {
@@ -263,6 +280,7 @@ namespace MagicMotion.Vision
             return lastInputHeight > 0 ? lastInputWidth / (float)lastInputHeight : 1f;
         }
 
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
         private void LogHandMeasurements(HandData hand, bool accepted)
         {
             var now = Time.realtimeSinceStartupAsDouble;
@@ -290,6 +308,7 @@ namespace MagicMotion.Vision
                 $"rot={lastRotation} input={lastInputWidth}x{lastInputHeight} " +
                 $"{HandShapeValidator.DescribeMeasurements(hand, FrameWidthToHeight())}");
         }
+#endif
 
         private static float CalculateLuma(Color32[] pixels)
         {

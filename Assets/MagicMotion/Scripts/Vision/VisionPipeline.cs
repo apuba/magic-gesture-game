@@ -162,7 +162,8 @@ namespace MagicMotion.Vision
             GameManager.Instance?.Events.Publish(new HandTrackingResult(
                 result.FrameSequence,
                 result.Timestamp,
-                smoothedHands));
+                smoothedHands,
+                result.WidthToHeight));
         }
 
         private void OnDestroy()

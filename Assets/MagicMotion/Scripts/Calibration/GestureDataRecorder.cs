@@ -759,7 +759,7 @@ namespace MagicMotion.Calibration
                 var hands = new HandRecord[result.Hands.Count];
                 for (var handIndex = 0; handIndex < result.Hands.Count; handIndex++)
                 {
-                    hands[handIndex] = CreateHandRecord(result.Hands[handIndex]);
+                    hands[handIndex] = CreateHandRecord(result.Hands[handIndex], result.WidthToHeight);
                 }
 
                 var record = new FrameRecord
@@ -790,7 +790,7 @@ namespace MagicMotion.Calibration
             }
         }
 
-        private HandRecord CreateHandRecord(HandData hand)
+        private HandRecord CreateHandRecord(HandData hand, float widthToHeight)
         {
             if (hand == null || !hand.IsValid)
             {
@@ -798,7 +798,7 @@ namespace MagicMotion.Calibration
             }
 
             var motion = MotionSampleFactory.Create(hand, 0d);
-            var gesture = rawGestureClassifier.Classify(hand);
+            var gesture = rawGestureClassifier.Classify(hand, widthToHeight);
             var landmarks = new LandmarkRecord[hand.Landmarks.Count];
             for (var index = 0; index < hand.Landmarks.Count; index++)
             {

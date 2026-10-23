@@ -50,6 +50,13 @@ namespace MagicMotion.UI
             new Dictionary<Handedness, bool>();
         private readonly Dictionary<Handedness, int> pointingStreak =
             new Dictionary<Handedness, int>();
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        private readonly Dictionary<Handedness, bool> lastLoggedPointing =
+            new Dictionary<Handedness, bool>();
+        private Handedness lastLoggedHandedness = Handedness.Unknown;
+        private double nextTrailLogRealtime;
+        private const double TrailLogIntervalSeconds = 2.0;
+#endif
         private double latestResultTimestamp = double.NegativeInfinity;
         private double lastResultRealtime = double.NegativeInfinity;
         private double lastHandRealtime = double.NegativeInfinity;
@@ -160,8 +167,8 @@ namespace MagicMotion.UI
                     {
                         displayedHands.Add(hand);
                         detectedHands++;
-                        UpdatePalmTrail(hand, now);
-                        UpdateRuneTracker(hand, now);
+                        UpdatePalmTrail(hand, now, result.WidthToHeight);
+                        UpdateRuneTracker(hand, now, result.WidthToHeight);
                     }
                 }
 
@@ -180,7 +187,7 @@ namespace MagicMotion.UI
             }
         }
 
-        private void UpdatePalmTrail(HandData hand, double timestamp)
+        private void UpdatePalmTrail(HandData hand, double timestamp, float widthToHeight)
         {
             if (hand.Handedness == Handedness.Unknown)
             {
@@ -200,7 +207,7 @@ namespace MagicMotion.UI
             // fallback, so it takes six agreeing frames with no finger to
             // give up. Old points are kept and marked as a break so the trail
             // never draws a jump between the two anchors.
-            var pointing = swordFingerDetector.IsPointing(hand);
+            var pointing = swordFingerDetector.IsPointing(hand, widthToHeight);
             var streak = 0;
             pointingStreak.TryGetValue(hand.Handedness, out streak);
             streak = Mathf.Clamp(streak + (pointing ? 1 : -1), -6, 6);
@@ -236,7 +243,53 @@ namespace MagicMotion.UI
                 : HandGeometry.CalculatePalmCenter(hand);
             trail.LifetimeSeconds = overlaySettings.TrailLifetime;
             trail.Add(anchor, timestamp, followsTip);
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            LogTrailAnchor(hand, widthToHeight, pointing, followsTip, anchor);
+#endif
         }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        // A trail that jumps can come from three places: the pointing decision
+        // flipping, the handedness flipping so the trail of the other hand gets
+        // drawn instead, or the fingertip landmark itself being unstable. Only
+        // the flips go to logcat, plus a slow sample, which is what tells the
+        // three apart without costing frames. Diagnostic only, so a release
+        // build keeps none of it.
+        private void LogTrailAnchor(
+            HandData hand, float widthToHeight, bool pointing, bool followsTip, Vector3 anchor)
+        {
+            var previousPointing = false;
+            var seen = lastLoggedPointing.TryGetValue(hand.Handedness, out previousPointing);
+            var pointingFlipped = seen && previousPointing != pointing;
+            lastLoggedPointing[hand.Handedness] = pointing;
+
+            var handednessFlipped = lastLoggedHandedness != Handedness.Unknown &&
+                lastLoggedHandedness != hand.Handedness;
+            lastLoggedHandedness = hand.Handedness;
+
+            var now = Time.realtimeSinceStartupAsDouble;
+            var sampled = now >= nextTrailLogRealtime;
+            if (!pointingFlipped && !handednessFlipped && !sampled)
+            {
+                return;
+            }
+
+            if (sampled)
+            {
+                nextTrailLogRealtime = now + TrailLogIntervalSeconds;
+            }
+
+            var fingers = swordFingerDetector.Analyze(hand, widthToHeight);
+            var tip = SwordFingerDetector.CalculateBrushPoint(hand);
+            Debug.Log(
+                $"[MagicMotion.Trail] {(pointingFlipped ? "pointing flip" : handednessFlipped ? "handedness flip" : "sample")} " +
+                $"rot={currentRotation} hand={hand.Handedness} pointing={pointing} followsTip={followsTip} " +
+                $"thumb={fingers.Thumb} index={fingers.Index} middle={fingers.Middle} " +
+                $"ring={fingers.Ring} pinky={fingers.Pinky} " +
+                $"tip={tip.x:0.0000}/{tip.y:0.0000}/{tip.z:0.0000} " +
+                $"anchor={anchor.x:0.0000}/{anchor.y:0.0000}");
+        }
+#endif
 
         private void SampleTrails(double now)
         {
@@ -282,7 +335,7 @@ namespace MagicMotion.UI
             }
         }
 
-        private void UpdateRuneTracker(HandData hand, double timestamp)
+        private void UpdateRuneTracker(HandData hand, double timestamp, float widthToHeight)
         {
             if (hand.Handedness == Handedness.Unknown)
             {
@@ -296,7 +349,7 @@ namespace MagicMotion.UI
                 runeTrackers.Add(hand.Handedness, tracker);
             }
 
-            var isSwordFinger = swordFingerDetector.IsPointing(hand);
+            var isSwordFinger = swordFingerDetector.IsPointing(hand, widthToHeight);
             var brushPoint = isSwordFinger ? SwordFingerDetector.CalculateBrushPoint(hand) : Vector3.zero;
             tracker.UpdatePose(isSwordFinger, brushPoint, HandGeometry.CalculatePalmWidth(hand), timestamp);
         }

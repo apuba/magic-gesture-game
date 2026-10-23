@@ -37,7 +37,7 @@ namespace MagicMotion.Gesture
 
                 sawLeft |= hand.Handedness == Handedness.Left;
                 sawRight |= hand.Handedness == Handedness.Right;
-                var classification = classifier.Classify(hand);
+                var classification = classifier.Classify(hand, result.WidthToHeight);
                 if (classification.Type == GestureType.Unknown)
                 {
                     PublishLostIfStable(hand.Handedness, result.Timestamp);
