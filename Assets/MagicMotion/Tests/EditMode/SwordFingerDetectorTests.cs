@@ -7,12 +7,16 @@ namespace MagicMotion.Tests
 {
     public sealed class SwordFingerDetectorTests
     {
+        // The factory hands are laid out in a square frame, so the frame shape
+        // that keeps every angle as authored is 1.
+        private const float SquareFrame = 1f;
+
         [Test]
         public void IsSwordFinger_RecognizesTwoClosedAndTwoExtendedLongFingers()
         {
             var detector = new SwordFingerDetector();
 
-            Assert.That(detector.IsSwordFinger(GestureHandFactory.SwordFinger()), Is.True);
+            Assert.That(detector.IsSwordFinger(GestureHandFactory.SwordFinger(), SquareFrame), Is.True);
         }
 
         [Test]
@@ -20,7 +24,20 @@ namespace MagicMotion.Tests
         {
             var detector = new SwordFingerDetector();
 
-            Assert.That(detector.IsSwordFinger(GestureHandFactory.OpenPalm()), Is.False);
+            Assert.That(detector.IsSwordFinger(GestureHandFactory.OpenPalm(), SquareFrame), Is.False);
+        }
+
+        // Turning the back of the hand to the camera hides the thumb, and the
+        // tracker then reports it as Extended on some frames and Bent on
+        // others. It must not be what decides whether the hand is pointing.
+        [Test]
+        public void IsPointing_IgnoresTheThumb()
+        {
+            var detector = new SwordFingerDetector();
+            var hand = GestureHandFactory.PointingIndexWithThumbOut();
+
+            Assert.That(detector.Analyze(hand, SquareFrame).Thumb, Is.EqualTo(FingerState.Extended));
+            Assert.That(detector.IsPointing(hand, SquareFrame), Is.True);
         }
 
         [Test]

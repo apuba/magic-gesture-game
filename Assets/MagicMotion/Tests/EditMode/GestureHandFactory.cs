@@ -54,6 +54,22 @@ namespace MagicMotion.Tests
             return Build(points);
         }
 
+        // The sword finger with the thumb sticking out. The thumb is exactly
+        // the joint the tracker guesses when the back of the hand is turned to
+        // the camera, so this is the pose that used to fall in and out of the
+        // pointing verdict with it.
+        public static HandData PointingIndexWithThumbOut()
+        {
+            var points = BasePalm();
+            Set(points, 1, -0.35f, 0.25f); Set(points, 2, -0.60f, 0.50f);
+            Set(points, 3, -0.85f, 0.75f); Set(points, 4, -1.10f, 1.00f);
+            SetStraightFinger(points, 5, -0.12f, 0.75f);
+            SetStraightFinger(points, 9, 0.02f, 0.85f);
+            SetFoldedFinger(points, 13, 0.15f, 0.80f);
+            SetFoldedFinger(points, 17, 0.45f, 0.68f);
+            return Build(points);
+        }
+
         private static List<Vector3> BasePalm()
         {
             var points = new List<Vector3>(new Vector3[HandData.RequiredLandmarkCount]);
