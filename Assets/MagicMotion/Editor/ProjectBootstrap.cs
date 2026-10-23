@@ -176,6 +176,69 @@ namespace MagicMotion.Editor
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.colorSpace = ColorSpace.Linear;
+            EnsureAppIcon();
+            EnsureRuneTextures();
+        }
+
+        // The talisman artwork is drawn straight through IMGUI, so it has to
+        // come in as a plain texture: no mipmaps, no power-of-two rescaling,
+        // and the alpha kept so the paper edge is not a hard rectangle.
+        private static readonly string[] RuneTexturePaths =
+        {
+            Root + "/Resources/Runes/Rune_Blank.png",
+            Root + "/Resources/Runes/Rune_Thunder.png",
+            Root + "/Resources/Runes/Rune_Fire.png",
+            Root + "/Resources/Runes/Rune_Water.png",
+            Root + "/Resources/Runes/Rune_Wind.png"
+        };
+
+        private static void EnsureRuneTextures()
+        {
+            foreach (var path in RuneTexturePaths)
+            {
+                if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
+                {
+                    Debug.LogWarning("[MagicMotion] Rune texture is missing at " + path);
+                    continue;
+                }
+
+                importer.textureType = TextureImporterType.Default;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.maxTextureSize = 2048;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+        }
+
+        // The launcher icon is re-applied on every bootstrap so the texture and
+        // the player settings stay in sync even after ProjectSettings resets.
+        private const string AppIconPath = Root + "/Art/Icons/AppIcon.png";
+
+        private static void EnsureAppIcon()
+        {
+            if (AssetImporter.GetAtPath(AppIconPath) is TextureImporter importer)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.alphaIsTransparency = true;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.mipmapEnabled = false;
+                importer.maxTextureSize = 2048;
+                importer.SaveAndReimport();
+            }
+
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(AppIconPath);
+            if (icon == null)
+            {
+                Debug.LogWarning("[MagicMotion] App icon texture is missing at " + AppIconPath);
+                return;
+            }
+
+            // Legacy icon slots only; the serialized project settings carry no
+            // adaptive layer configuration, so the launcher uses this texture
+            // directly instead of a white generated tile.
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Android, new[] { icon });
         }
     }
 }

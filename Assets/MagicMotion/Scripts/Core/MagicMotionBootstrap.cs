@@ -17,6 +17,12 @@ namespace MagicMotion.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Initialize()
         {
+            // The camera-driven classroom is operated without touching the
+            // screen, so the normal device idle timeout must not interrupt a
+            // gesture session. Android restores its own sleep policy when the
+            // app is no longer running in the foreground.
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
+
             if (GameManager.Instance != null)
             {
                 return;
@@ -38,6 +44,7 @@ namespace MagicMotion.Core
             root.AddComponent<ExperienceFlowController>();
             root.AddComponent<DebugHud>();
             root.AddComponent<HandTrackingDebugView>();
+            root.AddComponent<RuneCastController>();
             root.AddComponent<RuneFollowView>();
             root.AddComponent<GestureDataRecorder>();
 
