@@ -10,6 +10,7 @@ namespace MagicMotion.UI
     public sealed class OverlaySettings
     {
         private const string KeyShowStatus = "mm.ov.status";
+        private const string KeyShowSkeleton = "mm.ov.skeleton";
         private const string KeyShowTrail = "mm.ov.trail";
         private const string KeyTrailLifetime = "mm.ov.lifetime";
         private const string KeyTrailThickness = "mm.ov.thickness";
@@ -48,6 +49,7 @@ namespace MagicMotion.UI
         private static readonly int[] TrackingRateValues = { 10, 20, 30 };
 
         public bool ShowStatusText { get; set; } = true;
+        public bool ShowSkeleton { get; set; } = true;
         public bool ShowTrail { get; set; } = true;
         public float TrailLifetime { get; set; } = 0.65f;
         public float TrailThickness { get; set; } = 1f;
@@ -65,6 +67,7 @@ namespace MagicMotion.UI
         public void Load()
         {
             ShowStatusText = PlayerPrefs.GetInt(KeyShowStatus, 1) == 1;
+            ShowSkeleton = PlayerPrefs.GetInt(KeyShowSkeleton, 1) == 1;
             ShowTrail = PlayerPrefs.GetInt(KeyShowTrail, 1) == 1;
             TrailLifetime = PlayerPrefs.GetFloat(KeyTrailLifetime, 0.65f);
             TrailThickness = PlayerPrefs.GetFloat(KeyTrailThickness, 1f);
@@ -102,6 +105,7 @@ namespace MagicMotion.UI
         public void Save()
         {
             PlayerPrefs.SetInt(KeyShowStatus, ShowStatusText ? 1 : 0);
+            PlayerPrefs.SetInt(KeyShowSkeleton, ShowSkeleton ? 1 : 0);
             PlayerPrefs.SetInt(KeyShowTrail, ShowTrail ? 1 : 0);
             PlayerPrefs.SetFloat(KeyTrailLifetime, TrailLifetime);
             PlayerPrefs.SetFloat(KeyTrailThickness, TrailThickness);
@@ -169,7 +173,7 @@ namespace MagicMotion.UI
 
             // The rows add up to more than a landscape screen can show, so the
             // controls live in a scroll view and only the visible part is drawn.
-            var rows = 7;
+            var rows = 8;
             if (ShowTrail)
             {
                 rows += 3;
@@ -216,6 +220,9 @@ namespace MagicMotion.UI
             cursor += rowHeight;
 
             ShowStatusText = DrawToggle(x, cursor, width, controlHeight, "显示信息文字", ShowStatusText);
+            cursor += rowHeight;
+
+            ShowSkeleton = DrawToggle(x, cursor, width, controlHeight, "显示手部骨架", ShowSkeleton);
             cursor += rowHeight;
 
             ShowTrail = DrawToggle(x, cursor, width, controlHeight, "显示轨迹", ShowTrail);
