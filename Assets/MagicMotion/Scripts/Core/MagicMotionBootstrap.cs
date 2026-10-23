@@ -38,6 +38,7 @@ namespace MagicMotion.Core
             root.AddComponent<ExperienceFlowController>();
             root.AddComponent<DebugHud>();
             root.AddComponent<HandTrackingDebugView>();
+            root.AddComponent<RuneFollowView>();
             root.AddComponent<GestureDataRecorder>();
 
             try
